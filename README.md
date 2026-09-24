@@ -12,6 +12,9 @@ Built so a tournament director, not a programmer, can run it.
   - Age divisions (8U/10U/12U/14U by birth year)
   - Youth weight grouping: groups kids of similar weight (default within 10%), flags anything outside the rules, and supports moving a kid **up** an age or weight group (never down)
   - Round robin pairings and pool standings with tiebreakers
+  - Official weight classes (NFHS, USAW kids) and weigh-in checks
+  - Single and double elimination brackets (consolation, true second, byes, draws that keep teammates apart)
+  - Mat scheduler with rest between matches, bout numbers, and live on deck / in the hole estimates
 
 ## Development
 

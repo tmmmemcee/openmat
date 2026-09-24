@@ -48,6 +48,13 @@ describe("groupWrestlers", () => {
     expect(sizes.every((s) => s >= 3 && s <= 5)).toBe(true);
   });
 
+  it("prefers groups of the target size over slightly tighter smaller groups", () => {
+    // 12 kids from 70 to 76.6 lb: three groups of 4 are all within 10%; four groups of 3 would be tighter.
+    const entries = Array.from({ length: 12 }, (_, i) => kid(70 + i * 0.6));
+    const sizes = groupWrestlers(entries, USAW_KIDS_DIVISIONS).groups.map((g) => g.members.length);
+    expect(sizes).toEqual([4, 4, 4]);
+  });
+
   it("respects a spread floor for very light kids", () => {
     // 40 -> 44 is 10% (ok). 40 -> 45 is 12.5%, over 10% but within a 5 lb floor.
     const entries = [40, 42, 43, 45].map((w) => kid(w, "8U"));

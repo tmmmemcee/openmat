@@ -304,8 +304,10 @@ Each feature lists **what it does**, **how we build it**, and **open questions**
 
 - [x] Repo scaffold (pnpm monorepo, MIT)
 - [x] `@openmat/core`: age divisions (USAW birth-year rule), Madison grouping (DP, flags, bump-ups), round robin pairing, pool standings with tiebreakers, all unit tested
-- [ ] Official weight classes + class assignment at weigh-in
-- [ ] Elimination bracket slot graph (single/double elim, true second, byes, seeding)
-- [ ] Scheduler (mats, rest enforcement, ETAs)
+- [x] Official weight classes: NFHS boys/girls 14-class and USAW kids presets, weigh-in check (missed weight, one class up max), allowances
+- [x] Elimination brackets as a slot graph: single elim (+3rd), double elim placing 4/6/8 with consolation crossover, optional true second, byes to top seeds, random draw keeping teammates apart, correction conflicts
+- [x] Scheduler: per-mat list scheduling with rest and mat restrictions, bout numbering (101/201 or sequential), pools-to-mats balancing, live ETAs with now / on deck / in the hole and rest-hold flags
+- [ ] UWW repechage, pool-to-bracket crossover, team scoring
+- [ ] Max bouts per wrestler per day check (NFHS: 6)
 - [ ] Rulesets (NFHS, USAW kids folkstyle, UWW) + bout event log scoring
 - [ ] Web app (event wizard, registration, weigh-in, grouping UI, table app, mat board, follows)
