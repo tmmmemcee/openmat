@@ -214,6 +214,42 @@ export function boutRoutes(app: FastifyInstance, db: Db): void {
     return { result: o, winnerEntryId, conflicts: conflicts.map((c) => ({ id: c.id, boutNumber: c.boutNumber, message: c.conflict })) };
   });
 
+  /**
+   * Move a bout (director): to another mat and/or another place in line.
+   * `position` is 1-based among that mat's bouts still to wrestle; omit it to
+   * go to the end of the line.
+   */
+  app.patch<{ Params: { slug: string; id: string } }>("/api/events/:slug/bouts/:id", async (req) => {
+    const event = await loadEvent(db, req.params.slug);
+    await requireRole(db, req, event.id);
+    const input = z
+      .object({ mat: z.number().int().min(1).max(event.settings.mats), position: z.number().int().min(1).optional() })
+      .parse(req.body);
+    const { view } = await findBout(db, event, req.params.id);
+    if (view.status === "done" || view.status === "wrestling") throw new HttpError(409, "This bout has already started, so it can't be moved.");
+    if (view.status === "bye" || view.status === "not-needed") throw new HttpError(400, "Byes don't go on a mat.");
+
+    await db.transaction(async (tx) => {
+      const views = await loadBracketViews(tx as unknown as Db, event.id);
+      const all = views.flatMap((b) => b.bouts);
+      // The target mat's line (bouts still to wrestle), without the moving bout.
+      const line = all
+        .filter((b) => b.mat === input.mat && b.id !== view.id && (b.status === "ready" || b.status === "waiting"))
+        .sort((a, b) => (a.matOrder ?? 0) - (b.matOrder ?? 0));
+      const at = Math.min((input.position ?? line.length + 1) - 1, line.length);
+      line.splice(at, 0, view);
+      // Keep finished/started bouts ahead of the line; renumber the line after them.
+      const base = Math.max(0, ...all.filter((b) => b.mat === input.mat && b.id !== view.id && !line.includes(b)).map((b) => b.matOrder ?? 0));
+      for (const [i, b] of line.entries()) {
+        const matOrder = base + i + 1;
+        if (b.id === view.id || b.matOrder !== matOrder) {
+          await tx.update(bouts).set({ mat: input.mat, matOrder }).where(eq(bouts.id, b.id));
+        }
+      }
+    });
+    return { ok: true };
+  });
+
   /** Undo a start or a result (director): the bout goes back to the queue. Scoring history is kept. */
   app.post<{ Params: { slug: string; id: string } }>("/api/events/:slug/bouts/:id/reset", async (req) => {
     const event = await loadEvent(db, req.params.slug);

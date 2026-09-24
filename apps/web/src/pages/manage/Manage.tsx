@@ -4,6 +4,7 @@ import { formatDate, place } from "../../lib/format";
 import { ErrorBox, Header, Notice, Page, Spinner, cx } from "../../ui";
 import BracketsTab from "./BracketsTab";
 import Groups from "./Groups";
+import LiveTab from "./LiveTab";
 import Overview from "./Overview";
 import Wrestlers from "./Wrestlers";
 
@@ -41,6 +42,7 @@ export default function Manage() {
     ["wrestlers", "Wrestlers"],
     ...(ev.format === "madison" ? [["groups", "Groups"]] : []),
     ["brackets", "Brackets & mats"],
+    ["live", "Live"],
   ] as [string, string][];
 
   return (
@@ -75,6 +77,7 @@ export default function Manage() {
         {tab === "wrestlers" && <Wrestlers event={ev} />}
         {tab === "groups" && ev.format === "madison" && <Groups event={ev} />}
         {tab === "brackets" && <BracketsTab event={ev} />}
+        {tab === "live" && <LiveTab event={ev} />}
       </Page>
     </>
   );

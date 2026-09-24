@@ -116,3 +116,31 @@ describe("table scoring", () => {
     expect(pub.bout.status).toBe("wrestling");
   });
 });
+
+describe("director console", () => {
+  it("moves a bout to another mat and place in line; tables can't", async () => {
+    const s = await setup(8);
+    const q = async (mat: number) => (await app.inject({ url: `/api/events/${s.slug}/mats/${mat}` })).json().queue as { bout: { id: string } }[];
+    const mat2 = await q(2);
+    const moving = mat2[mat2.length - 1]!.bout.id;
+    const patch = (headers: object, payload: object) =>
+      app.inject({ method: "PATCH", url: `/api/events/${s.slug}/bouts/${moving}`, headers: headers as Record<string, string>, payload });
+    expect((await patch(s.tableAuth(2), { mat: 1, position: 1 })).statusCode).toBe(403);
+    expect((await patch(s.h, { mat: 1, position: 1 })).statusCode).toBe(200);
+    const mat1 = await q(1);
+    expect(mat1[0]!.bout.id).toBe(moving);
+    expect((await q(2)).some((x) => x.bout.id === moving)).toBe(false);
+    // Move it to the end of the line.
+    await patch(s.h, { mat: 1 });
+    const again = await q(1);
+    expect(again[again.length - 1]!.bout.id).toBe(moving);
+  });
+
+  it("won't move a bout that has started", async () => {
+    const s = await setup(4);
+    const semi = await s.bout("W1-1");
+    await s.post(`/bouts/${semi.id}/start`, s.tableAuth(semi.mat));
+    const res = await app.inject({ method: "PATCH", url: `/api/events/${s.slug}/bouts/${semi.id}`, headers: s.h, payload: { mat: semi.mat === 1 ? 2 : 1 } });
+    expect(res.statusCode).toBe(409);
+  });
+});
