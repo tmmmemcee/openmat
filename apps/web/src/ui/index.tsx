@@ -151,7 +151,11 @@ export function Header({ title, subtitle, right }: { title?: ReactNode; subtitle
           {title && <h1 className="truncate text-lg leading-tight font-bold sm:text-xl">{title}</h1>}
           {subtitle && <p className="truncate text-sm text-brand-100">{subtitle}</p>}
         </div>
-        {right}
+        {right ?? (
+          <Link to="/tournaments" className="text-sm font-semibold text-amber-300 hover:underline">
+            Find a tournament
+          </Link>
+        )}
       </div>
     </header>
   );

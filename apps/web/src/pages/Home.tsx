@@ -21,12 +21,20 @@ export default function Home() {
             Registration, weigh-ins, brackets, mat schedules and live results, in one place. No software to install and nothing
             technical to set up.
           </p>
-          <Link
-            to="/new"
-            className="mt-8 inline-flex rounded-lg bg-amber-400 px-6 py-3.5 text-base font-bold text-slate-900 hover:bg-amber-300"
-          >
-            Set up a tournament →
-          </Link>
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Link to="/new" className="inline-flex rounded-lg bg-amber-400 px-6 py-3.5 text-base font-bold text-slate-900 hover:bg-amber-300">
+              Set up a tournament →
+            </Link>
+            <Link to="/tournaments" className="inline-flex rounded-lg px-6 py-3.5 text-base font-bold text-white ring-1 ring-white/40 hover:bg-white/10">
+              Find a tournament
+            </Link>
+          </div>
+          <p className="mt-4 text-sm text-brand-100">
+            Running a tournament and lost your link?{" "}
+            <Link to="/recover" className="font-semibold text-white underline">
+              Get it back
+            </Link>
+          </p>
         </div>
       </section>
       <Page className="-mt-10">

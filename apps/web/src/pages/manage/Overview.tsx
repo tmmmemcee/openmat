@@ -1,8 +1,10 @@
+import { useState } from "react";
 import { type EventInfo, api } from "../../api";
 import { useEntries, useEventMutation } from "../../lib/hooks";
-import { periods } from "../../lib/format";
+import { formatDate, formatTime, periods } from "../../lib/format";
+import { REGIONS } from "../../lib/states";
 import { staffUrl } from "../../token";
-import { Badge, Button, Card, CopyButton, ErrorBox } from "../../ui";
+import { Badge, Button, Card, CopyButton, Dialog, ErrorBox, Field, Input, Select } from "../../ui";
 
 export default function Overview({ event }: { event: EventInfo }) {
   const entries = useEntries(event.slug);
@@ -43,7 +45,11 @@ export default function Overview({ event }: { event: EventInfo }) {
               {event.settings.registrationOpen ? "Close registration" : "Open registration"}
             </Button>
             <CopyButton text={publicUrl} label="Copy public link" />
+            <CopyButton text={`${publicUrl}/team`} label="Copy team roster link" />
           </div>
+          <p className="mt-2 text-xs text-slate-500">
+            Coaches can use the team roster link to register their whole team at once by pasting from a spreadsheet.
+          </p>
         </Card>
 
         <Card>
@@ -77,6 +83,7 @@ export default function Overview({ event }: { event: EventInfo }) {
       </div>
 
       <div className="space-y-4">
+        <DetailsCard event={event} />
         <Card>
           <h2 className="font-bold">Setup</h2>
           <dl className="mt-2 space-y-2 text-sm">
@@ -103,7 +110,8 @@ export default function Overview({ event }: { event: EventInfo }) {
               <li key={d.id} className="flex justify-between gap-2">
                 <span>{d.name}</span>
                 <span className="text-slate-500">
-                  {list.filter((e) => e.divisionId === d.id && e.status !== "scratched").length} · {periods(d.periodsSec)}
+                  {pluralWrestlers(list.filter((e) => e.divisionId === d.id && e.status !== "scratched").length)} · periods{" "}
+                  {periods(d.periodsSec)}
                 </span>
               </li>
             ))}
@@ -131,3 +139,97 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
     </div>
   );
 }
+
+function DetailsCard({ event }: { event: EventInfo }) {
+  const [editing, setEditing] = useState(false);
+  return (
+    <Card>
+      <div className="flex items-center justify-between">
+        <h2 className="font-bold">Details</h2>
+        <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
+          Edit
+        </Button>
+      </div>
+      <dl className="mt-2 space-y-2 text-sm">
+        <Row label="When">{[formatDate(event.startDate), formatTime(event.startTime)].filter(Boolean).join(", ")}</Row>
+        <Row label="Where">{[event.location, [event.city, event.state].filter(Boolean).join(", ")].filter(Boolean).join(" · ") || "—"}</Row>
+        <Row label="Tournament list">{event.listed ? "Listed" : "Hidden"}</Row>
+        <Row label="Director email">{event.directorEmail || <span className="text-amber-700">None: add one so you can recover your link</span>}</Row>
+      </dl>
+      {editing && <DetailsDialog event={event} onClose={() => setEditing(false)} />}
+    </Card>
+  );
+}
+
+function DetailsDialog({ event, onClose }: { event: EventInfo; onClose: () => void }) {
+  const [d, setD] = useState({
+    name: event.name,
+    startDate: event.startDate,
+    startTime: event.startTime ?? "",
+    location: event.location,
+    city: event.city,
+    state: event.state,
+    listed: event.listed,
+    directorEmail: event.directorEmail ?? "",
+  });
+  const set = (patch: Partial<typeof d>) => setD((prev) => ({ ...prev, ...patch }));
+  const save = useEventMutation(event.slug, () =>
+    api(`/events/${event.slug}`, { method: "PATCH", slug: event.slug, body: { ...d, startTime: d.startTime || null } }),
+  );
+  return (
+    <Dialog open onClose={onClose} title="Tournament details">
+      <form
+        className="space-y-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          save.mutate(undefined, { onSuccess: onClose });
+        }}
+      >
+        <Field label="Name">
+          <Input value={d.name} onChange={(e) => set({ name: e.target.value })} />
+        </Field>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="Date">
+            <Input type="date" value={d.startDate} onChange={(e) => set({ startDate: e.target.value })} />
+          </Field>
+          <Field label="Wrestling starts">
+            <Input type="time" value={d.startTime} onChange={(e) => set({ startTime: e.target.value })} />
+          </Field>
+        </div>
+        <Field label="Venue">
+          <Input value={d.location} onChange={(e) => set({ location: e.target.value })} />
+        </Field>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label="City">
+            <Input value={d.city} onChange={(e) => set({ city: e.target.value })} />
+          </Field>
+          <Field label="State">
+            <Select value={d.state} onChange={(e) => set({ state: e.target.value })}>
+              <option value="">—</option>
+              {REGIONS.map(([code, label]) => (
+                <option key={code} value={code}>
+                  {label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
+        <Field label="Director email" hint="Where we send a new director link if you lose yours. Never shown publicly.">
+          <Input type="email" value={d.directorEmail} onChange={(e) => set({ directorEmail: e.target.value })} />
+        </Field>
+        <label className="flex items-center gap-2 text-sm">
+          <input type="checkbox" className="size-4" checked={d.listed} onChange={(e) => set({ listed: e.target.checked })} />
+          Show in the public tournament list
+        </label>
+        <ErrorBox error={save.error} />
+        <div className="flex justify-end">
+          <Button type="submit" disabled={save.isPending}>
+            Save
+          </Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+const pluralWrestlers = (n: number) => `${n} wrestler${n === 1 ? "" : "s"}`;

@@ -2,7 +2,7 @@ import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { api } from "../api";
-import { formatDate, periods } from "../lib/format";
+import { formatDate, formatTime, periods, place } from "../lib/format";
 import { useEvent } from "../lib/hooks";
 import { Card, ErrorBox, Header, Notice, Page, Spinner } from "../ui";
 import { type EntryDraft, EntryForm } from "./EntryForm";
@@ -27,7 +27,10 @@ export default function EventPublic() {
 
   return (
     <>
-      <Header title={ev.name} subtitle={[formatDate(ev.startDate), ev.location].filter(Boolean).join(" · ")} />
+      <Header
+        title={ev.name}
+        subtitle={[[formatDate(ev.startDate), formatTime(ev.startTime)].filter(Boolean).join(", "), place(ev)].filter(Boolean).join(" · ")}
+      />
       <Page className="max-w-3xl space-y-4">
         {ev.access?.role === "director" && (
           <Notice>
@@ -37,7 +40,12 @@ export default function EventPublic() {
 
         {ev.settings.registrationOpen && (
           <Card>
-            <h2 className="text-lg font-bold">Register a wrestler</h2>
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="text-lg font-bold">Register a wrestler</h2>
+              <Link to={`/e/${slug}/team`} className="text-sm font-semibold text-brand-700">
+                Coach? Register your whole team →
+              </Link>
+            </div>
             {registered && (
               <div className="mt-3">
                 <Notice tone="green">

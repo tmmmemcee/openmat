@@ -1,12 +1,15 @@
 import { RULESETS } from "@openmat/core";
-import { and, asc, eq, isNull, ne } from "drizzle-orm";
+import { and, asc, eq, gte, ilike, inArray, isNull, lte, ne, or, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
-import { customAlphabet } from "../ids.js";
 import { z } from "zod";
 import { accessFor, createAccessLink, requireRole } from "../auth.js";
+import { directorUrl } from "../config.js";
 import type { Db } from "../db/client.js";
-import { accessLinks, divisions, events, type EventSettings } from "../db/schema.js";
+import { accessLinks, divisions, entries, events, type EventSettings } from "../db/schema.js";
 import { HttpError } from "../errors.js";
+import { customAlphabet } from "../ids.js";
+import type { Mailer } from "../mailer.js";
+import { RateLimiter } from "../rateLimit.js";
 import { templates } from "../templates.js";
 
 const newSlug = customAlphabet("23456789abcdefghjkmnpqrstuvwxyz", 6);
@@ -34,11 +37,20 @@ const settingsInput = z.object({
   }),
 });
 
+const email = z.string().trim().toLowerCase().email("That email doesn't look right").max(200);
+const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use a time like 09:00");
+const state = z.string().trim().toUpperCase().max(3);
+
 const createEventInput = z
   .object({
     name: z.string().trim().min(2).max(120),
     startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date like 2026-12-05"),
+    startTime: time.nullish(),
     location: z.string().trim().max(200).default(""),
+    city: z.string().trim().max(80).default(""),
+    state: state.default(""),
+    listed: z.boolean().default(true),
+    directorEmail: email.nullish().or(z.literal("").transform(() => null)),
     format: z.enum(["madison", "weight-classes"]),
     rulesetId: z.string().refine((id) => RULESETS.some((r) => r.id === id), "Unknown rule set"),
     seasonYear: z.number().int().min(2000).max(2100).optional(),
@@ -79,8 +91,100 @@ export async function loadDivisions(db: Db, eventId: string) {
   return db.select().from(divisions).where(eq(divisions.eventId, eventId)).orderBy(asc(divisions.sortOrder));
 }
 
-export function eventRoutes(app: FastifyInstance, db: Db): void {
+function directorEmailText(links: { name: string; url: string }[]): string {
+  return [
+    `Here ${links.length === 1 ? "is your director link" : "are your director links"} for OpenMat.`,
+    "",
+    ...links.flatMap((l) => [l.name, l.url, ""]),
+    "Anyone with a director link can manage the tournament, so keep it private.",
+  ].join("\n");
+}
+
+export function eventRoutes(app: FastifyInstance, db: Db, mailer: Mailer): void {
+  const recoverLimiter = new RateLimiter(5, 60 * 60 * 1000);
+
   app.get("/api/templates", async () => templates());
+
+  /** Public tournament list with filters. Only events marked as listed. */
+  app.get("/api/events", async (req) => {
+    const q = z
+      .object({
+        q: z.string().trim().max(100).optional(),
+        state: z.string().trim().toUpperCase().max(3).optional(),
+        from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        format: z.enum(["madison", "weight-classes"]).optional(),
+        open: z.enum(["true", "false"]).optional(),
+      })
+      .parse(req.query);
+    const today = new Date().toISOString().slice(0, 10);
+    const conditions = [eq(events.listed, true), gte(events.startDate, q.from ?? today)];
+    if (q.to) conditions.push(lte(events.startDate, q.to));
+    if (q.state) conditions.push(eq(events.state, q.state));
+    if (q.format) conditions.push(eq(events.format, q.format));
+    if (q.open === "true") conditions.push(sql`(${events.settings}->>'registrationOpen')::boolean = true`);
+    if (q.q) {
+      const like = `%${q.q.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
+      conditions.push(or(ilike(events.name, like), ilike(events.city, like), ilike(events.location, like))!);
+    }
+    const rows = await db
+      .select()
+      .from(events)
+      .where(and(...conditions))
+      .orderBy(asc(events.startDate), asc(events.startTime), asc(events.name))
+      .limit(200);
+    const ids = rows.map((r) => r.id);
+    const divs = ids.length ? await db.select().from(divisions).where(inArray(divisions.eventId, ids)).orderBy(asc(divisions.sortOrder)) : [];
+    const counts = ids.length
+      ? await db
+          .select({ eventId: entries.eventId, n: sql<number>`count(*)::int` })
+          .from(entries)
+          .where(and(inArray(entries.eventId, ids), ne(entries.status, "scratched")))
+          .groupBy(entries.eventId)
+      : [];
+    const states = await db
+      .selectDistinct({ state: events.state })
+      .from(events)
+      .where(and(eq(events.listed, true), gte(events.startDate, today), ne(events.state, "")))
+      .orderBy(asc(events.state));
+    return {
+      events: rows.map((e) => ({
+        slug: e.slug,
+        name: e.name,
+        startDate: e.startDate,
+        startTime: e.startTime,
+        location: e.location,
+        city: e.city,
+        state: e.state,
+        format: e.format,
+        registrationOpen: e.settings.registrationOpen,
+        divisions: divs.filter((d) => d.eventId === e.id).map((d) => d.name),
+        wrestlers: counts.find((c) => c.eventId === e.id)?.n ?? 0,
+      })),
+      states: states.map((s) => s.state),
+    };
+  });
+
+  /**
+   * Lost director link: email fresh links for every tournament with this
+   * director email. Always answers the same way, so it can't be used to find
+   * out who runs what.
+   */
+  app.post("/api/recover", async (req) => {
+    const input = z.object({ email }).parse(req.body);
+    if (!recoverLimiter.allow(`ip:${req.ip}`) || !recoverLimiter.allow(`email:${input.email}`)) {
+      throw new HttpError(429, "Too many tries. Please wait an hour and try again.");
+    }
+    const owned = await db.select().from(events).where(eq(events.directorEmail, input.email)).orderBy(asc(events.startDate));
+    if (owned.length) {
+      const links = [];
+      for (const e of owned) {
+        links.push({ name: `${e.name} (${e.startDate})`, url: directorUrl(e.slug, await createAccessLink(db, e.id, "director")) });
+      }
+      await mailer.send({ to: input.email, subject: "Your OpenMat director links", text: directorEmailText(links) });
+    }
+    return { ok: true };
+  });
 
   app.post("/api/events", async (req, reply) => {
     const input = createEventInput.parse(req.body);
@@ -101,7 +205,12 @@ export function eventRoutes(app: FastifyInstance, db: Db): void {
           slug,
           name: input.name,
           startDate: input.startDate,
+          startTime: input.startTime ?? null,
           location: input.location,
+          city: input.city,
+          state: input.state,
+          listed: input.listed,
+          directorEmail: input.directorEmail ?? null,
           format: input.format,
           rulesetId: input.rulesetId,
           seasonYear: input.seasonYear ?? seasonYearFor(input.startDate),
@@ -128,6 +237,17 @@ export function eventRoutes(app: FastifyInstance, db: Db): void {
       return { event: event!, directorToken };
     });
 
+    if (result.event.directorEmail) {
+      await mailer
+        .send({
+          to: result.event.directorEmail,
+          subject: `Your director link: ${result.event.name}`,
+          text: directorEmailText([
+            { name: `${result.event.name} (${result.event.startDate})`, url: directorUrl(result.event.slug, result.directorToken) },
+          ]),
+        })
+        .catch((err) => req.log.error(err, "director email failed"));
+    }
     return reply.status(201).send({ slug: result.event.slug, directorToken: result.directorToken });
   });
 
@@ -149,14 +269,18 @@ export function eventRoutes(app: FastifyInstance, db: Db): void {
       slug: event.slug,
       name: event.name,
       startDate: event.startDate,
+      startTime: event.startTime,
       location: event.location,
+      city: event.city,
+      state: event.state,
+      listed: event.listed,
       format: event.format,
       seasonYear: event.seasonYear,
       ruleset: ruleset && { id: ruleset.id, name: ruleset.name, summary: ruleset.summary, links: ruleset.links },
       settings: event.settings,
       divisions: divs,
       access: access ? { role: access.role, mat: access.mat } : null,
-      ...(staffLinks ? { staffLinks } : {}),
+      ...(staffLinks ? { staffLinks, directorEmail: event.directorEmail } : {}),
     };
   });
 
@@ -167,7 +291,12 @@ export function eventRoutes(app: FastifyInstance, db: Db): void {
       .object({
         name: z.string().trim().min(2).max(120).optional(),
         startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+        startTime: time.nullish(),
         location: z.string().trim().max(200).optional(),
+        city: z.string().trim().max(80).optional(),
+        state: state.optional(),
+        listed: z.boolean().optional(),
+        directorEmail: email.nullish().or(z.literal("").transform(() => null)),
         settings: settingsInput.partial().optional(),
       })
       .parse(req.body);
@@ -178,7 +307,17 @@ export function eventRoutes(app: FastifyInstance, db: Db): void {
     await db.transaction(async (tx) => {
       await tx
         .update(events)
-        .set({ name: input.name, startDate: input.startDate, location: input.location, settings })
+        .set({
+          name: input.name,
+          startDate: input.startDate,
+          startTime: input.startTime,
+          location: input.location,
+          city: input.city,
+          state: input.state,
+          listed: input.listed,
+          directorEmail: input.directorEmail,
+          settings,
+        })
         .where(eq(events.id, event.id));
       // Keep one table link per mat.
       if (settings.mats !== event.settings.mats) {

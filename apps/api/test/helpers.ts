@@ -1,12 +1,15 @@
 import { afterAll, beforeEach } from "vitest";
 import { buildApp } from "../src/app.js";
 import { createDb } from "../src/db/client.js";
+import { memoryMailer } from "../src/mailer.js";
 
 const { db, sql } = createDb();
-export const app = buildApp(db);
+export const mailer = memoryMailer();
+export const app = buildApp(db, { mailer });
 
 beforeEach(async () => {
   await sql`truncate events cascade`;
+  mailer.sent.length = 0;
 });
 afterAll(async () => {
   await app.close();

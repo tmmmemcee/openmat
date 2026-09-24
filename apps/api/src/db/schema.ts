@@ -25,7 +25,17 @@ export const events = pgTable(
     slug: text("slug").notNull(),
     name: text("name").notNull(),
     startDate: text("start_date").notNull(), // YYYY-MM-DD, in the event's local time
+    /** Venue, e.g. "Central High School gym". */
     location: text("location").notNull().default(""),
+    city: text("city").notNull().default(""),
+    /** Two-letter state/province code, for the tournament list filters. */
+    state: text("state").notNull().default(""),
+    /** When wrestling starts, "HH:MM" local time. */
+    startTime: text("start_time"),
+    /** Shown in the public tournament list. */
+    listed: boolean("listed").notNull().default(true),
+    /** Where to send a new director link if it's lost. Never shown publicly. */
+    directorEmail: text("director_email"),
     format: text("format").$type<EventFormat>().notNull(),
     rulesetId: text("ruleset_id").notNull(),
     /** Season year used for age divisions (e.g. 2026 for the 2025-26 season). */
@@ -33,7 +43,7 @@ export const events = pgTable(
     settings: jsonb("settings").$type<EventSettings>().notNull(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("events_slug_idx").on(t.slug)],
+  (t) => [uniqueIndex("events_slug_idx").on(t.slug), index("events_listing_idx").on(t.listed, t.startDate)],
 );
 
 export type StaffRole = "director" | "weigh-in" | "table";

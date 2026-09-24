@@ -1,6 +1,6 @@
-import { NavLink, useParams } from "react-router";
+import { Link, NavLink, useParams } from "react-router";
 import { useEvent } from "../../lib/hooks";
-import { formatDate } from "../../lib/format";
+import { formatDate, place } from "../../lib/format";
 import { ErrorBox, Header, Notice, Page, Spinner, cx } from "../../ui";
 import Groups from "./Groups";
 import Overview from "./Overview";
@@ -25,7 +25,10 @@ export default function Manage() {
         <Header title={ev.name} />
         <Page className="max-w-xl">
           <Notice tone="amber">
-            This page is for the tournament director. Open the director link you saved when the tournament was created, on this device.
+            This page is for the tournament director. Open the director link you saved when the tournament was created.{" "}
+            <Link to="/recover" className="font-semibold underline">
+              Lost it?
+            </Link>
           </Notice>
         </Page>
       </>
@@ -42,7 +45,7 @@ export default function Manage() {
     <>
       <Header
         title={ev.name}
-        subtitle={[formatDate(ev.startDate), ev.location].filter(Boolean).join(" · ")}
+        subtitle={[formatDate(ev.startDate), place(ev)].filter(Boolean).join(" · ")}
         right={
           <a href={`/e/${slug}`} target="_blank" rel="noreferrer" className="text-sm font-semibold text-amber-300 hover:underline">
             Public page ↗

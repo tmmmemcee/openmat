@@ -6,7 +6,11 @@ import { accessFor, requireRole } from "../auth.js";
 import type { Db } from "../db/client.js";
 import { divisions, entries, type EntryStatus, groupMembers } from "../db/schema.js";
 import { HttpError } from "../errors.js";
+import { RateLimiter } from "../rateLimit.js";
 import { loadDivisions, loadEvent } from "./events.js";
+
+/** Most wrestlers a coach can register at once from the public page. */
+export const PUBLIC_ROSTER_MAX = 150;
 
 type Event = Awaited<ReturnType<typeof loadEvent>>;
 type Division = typeof divisions.$inferSelect;
@@ -138,6 +142,11 @@ function newEntryValues(event: Event, d: Division, input: EntryInput) {
 }
 
 export function entryRoutes(app: FastifyInstance, db: Db): void {
+  const publicLimiter = new RateLimiter(60, 60 * 60 * 1000);
+  const checkPublicLimit = (ip: string) => {
+    if (!publicLimiter.allow(ip)) throw new HttpError(429, "Too many registrations from here. Please wait a bit and try again.");
+  };
+
   app.get<{ Params: { slug: string } }>("/api/events/:slug/entries", async (req) => {
     const event = await loadEvent(db, req.params.slug);
     await requireRole(db, req, event.id, "weigh-in", "table");
@@ -152,6 +161,7 @@ export function entryRoutes(app: FastifyInstance, db: Db): void {
     const access = await accessFor(db, req, event.id);
     const isStaff = access?.role === "director" || access?.role === "weigh-in";
     if (!isStaff && !event.settings.registrationOpen) throw new HttpError(403, "Registration for this event is closed.");
+    if (!isStaff) checkPublicLimit(req.ip);
     const input = entryInput.parse(req.body);
     if (!isStaff) delete input.notes;
     const divs = await loadDivisions(db, event.id);
@@ -163,11 +173,34 @@ export function entryRoutes(app: FastifyInstance, db: Db): void {
     return reply.status(201).send(isStaff ? present({ ...created!, groupId: null }, divs) : { id: created!.id, division: d.name });
   });
 
-  /** Bulk import (e.g. from a spreadsheet). Good rows are added; bad rows come back with the reason. */
+  /**
+   * Bulk import from a spreadsheet. Good rows are added; bad rows come back
+   * with the reason. The director can import anything; coaches can register
+   * a team roster from the public page while registration is open (the team
+   * name and contact email then apply to every row).
+   */
   app.post<{ Params: { slug: string } }>("/api/events/:slug/entries/import", async (req) => {
     const event = await loadEvent(db, req.params.slug);
-    await requireRole(db, req, event.id);
-    const { rows } = z.object({ rows: z.array(z.unknown()).min(1).max(5000) }).parse(req.body);
+    const access = await accessFor(db, req, event.id);
+    const isDirector = access?.role === "director";
+    let rows: unknown[];
+    if (isDirector) {
+      rows = z.object({ rows: z.array(z.unknown()).min(1).max(5000) }).parse(req.body).rows;
+    } else {
+      if (!event.settings.registrationOpen) throw new HttpError(403, "Registration for this event is closed.");
+      checkPublicLimit(req.ip);
+      const roster = z
+        .object({
+          team: z.string().trim().min(1, "Enter your team name").max(80),
+          contactEmail: z.string().trim().email("That email doesn't look right").max(200).nullish().or(z.literal("").transform(() => null)),
+          rows: z
+            .array(z.record(z.string(), z.unknown()))
+            .min(1, "Add at least one wrestler")
+            .max(PUBLIC_ROSTER_MAX, `Up to ${PUBLIC_ROSTER_MAX} wrestlers at a time`),
+        })
+        .parse(req.body);
+      rows = roster.rows.map(({ notes: _notes, ...r }) => ({ ...r, team: roster.team, contactEmail: roster.contactEmail ?? null }));
+    }
     const divs = await loadDivisions(db, event.id);
     const errors: { row: number; message: string }[] = [];
     const values: ReturnType<typeof newEntryValues>[] = [];

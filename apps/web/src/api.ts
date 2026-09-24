@@ -57,7 +57,11 @@ export interface EventInfo {
   slug: string;
   name: string;
   startDate: string;
+  startTime: string | null;
   location: string;
+  city: string;
+  state: string;
+  listed: boolean;
   format: "madison" | "weight-classes";
   seasonYear: number;
   ruleset?: { id: string; name: string; summary: string; links: { label: string; url: string }[] };
@@ -65,6 +69,22 @@ export interface EventInfo {
   divisions: Division[];
   access: { role: Role; mat: number | null } | null;
   staffLinks?: { id: string; role: Role; mat: number | null; token: string }[];
+  /** Director only. */
+  directorEmail?: string | null;
+}
+
+export interface ListedEvent {
+  slug: string;
+  name: string;
+  startDate: string;
+  startTime: string | null;
+  location: string;
+  city: string;
+  state: string;
+  format: "madison" | "weight-classes";
+  registrationOpen: boolean;
+  divisions: string[];
+  wrestlers: number;
 }
 
 export type WeighInCheck =

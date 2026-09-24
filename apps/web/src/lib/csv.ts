@@ -36,18 +36,37 @@ export interface ParsedRows {
 }
 
 export async function parseWrestlerCsv(file: File): Promise<ParsedRows> {
-  const text = await file.text();
-  const result = Papa.parse<Record<string, string>>(text, { header: true, skipEmptyLines: "greedy" });
-  const headers = result.meta.fields ?? [];
+  return parseWrestlerText(await file.text());
+}
+
+/** Columns assumed, in order, when pasted rows have no header row. */
+const POSITIONAL = ["firstName", "lastName", "birthYear", "gender", "declaredWeight"];
+
+/**
+ * Spreadsheet text: a CSV file, or rows copied from Excel/Google Sheets
+ * (tab separated). A header row is used when it names the columns; without
+ * one, columns are taken as first name, last name, birth year, boys/girls,
+ * weight.
+ */
+export function parseWrestlerText(text: string): ParsedRows {
+  const withHeader = Papa.parse<Record<string, string>>(text.trim(), { header: true, skipEmptyLines: "greedy" });
+  const headers = withHeader.meta.fields ?? [];
   const columns: Record<string, string | null> = {};
   for (const [field, names] of Object.entries(ALIASES)) {
     columns[field] = headers.find((h) => names.includes(norm(h))) ?? null;
+  }
+  let data = withHeader.data;
+  if (!columns.firstName && !columns.lastName) {
+    // No header row: read every line as data, in the POSITIONAL column order.
+    const raw = Papa.parse<string[]>(text.trim(), { skipEmptyLines: "greedy" });
+    data = raw.data.map((cells) => Object.fromEntries(POSITIONAL.map((key, i) => [key, cells[i] ?? ""])));
+    for (const field of Object.keys(ALIASES)) columns[field] = POSITIONAL.includes(field) ? field : null;
   }
   const get = (row: Record<string, string>, field: string) => {
     const col = columns[field];
     return col ? (row[col] ?? "").trim() : "";
   };
-  const rows = result.data.map((row) => {
+  const rows = data.map((row) => {
     const out: Record<string, unknown> = {
       firstName: get(row, "firstName"),
       lastName: get(row, "lastName"),

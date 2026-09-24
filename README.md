@@ -35,6 +35,15 @@ pnpm test         # core + API tests (API tests use the openmat_test database)
 pnpm typecheck
 ```
 
+Environment variables for the API (all optional in development):
+
+- `DATABASE_URL`: Postgres connection (default: the Docker dev database)
+- `PUBLIC_BASE_URL`: where the web app is served, used in emailed links (default `http://localhost:5173`)
+- `SMTP_URL` / `MAIL_FROM`: send real email (e.g. `smtps://user:pass@smtp.example.com:465`). Without it, emails are printed to the API log.
+- `TRUST_PROXY=1`: behind a reverse proxy, so rate limits see real client IPs
+
+If a director lost their link and gave no email: `pnpm --filter @openmat/api director-link <event slug>` prints a new one.
+
 First time only, create the test database:
 `docker exec openmat-db psql -U openmat -c "create database openmat_test"`
 

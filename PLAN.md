@@ -314,6 +314,10 @@ Each feature lists **what it does**, **how we build it**, and **open questions**
 - [ ] Get an official to review the `toVerify` items
 - [x] API (Fastify + Postgres/Drizzle): events, secret staff links (director / weigh-in / per-mat table), registration, CSV import, weigh-in checks, wrestle-up bumps, auto-grouping with locked groups, manual moves (never down)
 - [x] Web app, part 1: setup wizard, director dashboard (overview, wrestlers, groups with drag and drop), weigh-in station, public event page with self-registration
+- [x] Team roster registration: coaches paste from a spreadsheet / upload CSV / type rows, fix them in a preview grid, register the whole team at once (public, while registration is open; rate-limited, 150 per batch)
+- [x] Public tournament list with filters (search, state, dates, type, registration open); events have venue, city, state, start time and a "listed" switch
+- [x] Lost director link recovery: optional director email, emailed links (SMTP or logged in dev), admin `director-link` command
 - [ ] Web app, part 2: brackets and schedule, table scoring app, live mat board, follows and notifications
 - [ ] Hosting and deploy (public site)
-- [ ] Rate limiting / abuse protection on public registration
+- [ ] Stronger abuse protection on public registration (basic per-IP rate limits are in; add CAPTCHA or email confirmation before going public)
+- [ ] Location search by distance ("within 50 miles"): needs geocoding

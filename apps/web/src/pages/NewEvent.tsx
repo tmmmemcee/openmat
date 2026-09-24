@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { type Templates, api } from "../api";
 import { Button, Card, CopyButton, ErrorBox, Field, Header, Input, Notice, Page, Select, Spinner, cx } from "../ui";
+import { REGIONS } from "../lib/states";
 import { setToken, staffUrl } from "../token";
 
 type Kind = "youth" | "official";
@@ -30,7 +31,12 @@ export default function NewEvent() {
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [startDate, setStartDate] = useState("");
+  const [startTime, setStartTime] = useState("09:00");
   const [location, setLocation] = useState("");
+  const [city, setCity] = useState("");
+  const [region, setRegion] = useState("");
+  const [directorEmail, setDirectorEmail] = useState("");
+  const [listed, setListed] = useState(true);
   const [kind, setKind] = useState<Kind>("youth");
   const [ages, setAges] = useState<string[]>(["8U", "10U", "12U", "14U"]);
   const [genders, setGenders] = useState<"separate" | "together">("separate");
@@ -79,7 +85,12 @@ export default function NewEvent() {
         body: {
           name,
           startDate,
+          startTime: startTime || null,
           location,
+          city,
+          state: region,
+          listed,
+          directorEmail: directorEmail || null,
           format: kind === "youth" ? "madison" : "weight-classes",
           rulesetId: ruleset!.id,
           settings: { mats, restMin: rest },
@@ -106,6 +117,7 @@ export default function NewEvent() {
             <p className="mt-1 text-sm text-slate-600">
               This link is how you get back in to run <strong>{name}</strong>. There's no password: anyone with this link can manage the
               event, so keep it private. <strong>We can't show it again</strong>, so bookmark it or email it to yourself now.
+              {directorEmail && <> We also emailed it to <strong>{directorEmail}</strong>.</>}
             </p>
             <div className="mt-4 rounded-lg bg-slate-100 p-3 font-mono text-xs break-all">{link}</div>
             <div className="mt-3 flex flex-wrap gap-2">
@@ -130,7 +142,7 @@ export default function NewEvent() {
   }
 
   const canNext = [
-    name.trim().length >= 2 && /^\d{4}-\d{2}-\d{2}$/.test(startDate),
+    name.trim().length >= 2 && /^\d{4}-\d{2}-\d{2}$/.test(startDate) && (!directorEmail || /^\S+@\S+\.\S+$/.test(directorEmail)),
     true,
     divisions.length > 0,
     mats >= 1 && !!ruleset,
@@ -154,11 +166,34 @@ export default function NewEvent() {
               <Field label="Tournament name">
                 <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Winter Kids Classic" autoFocus />
               </Field>
-              <Field label="Date">
-                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Date">
+                  <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+                </Field>
+                <Field label="Wrestling starts">
+                  <Input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+                </Field>
+              </div>
+              <Field label="Venue" hint="Gym or school name. Optional.">
+                <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Central High School" />
               </Field>
-              <Field label="Location" hint="Gym or school name and town. Optional.">
-                <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Central High School, Springfield" />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="City">
+                  <Input value={city} onChange={(e) => setCity(e.target.value)} placeholder="Springfield" />
+                </Field>
+                <Field label="State">
+                  <Select value={region} onChange={(e) => setRegion(e.target.value)}>
+                    <option value="">Choose…</option>
+                    {REGIONS.map(([code, label]) => (
+                      <option key={code} value={code}>
+                        {label}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              </div>
+              <Field label="Your email" hint="Recommended. If you ever lose your director link, we can email you a new one. Never shown publicly.">
+                <Input type="email" value={directorEmail} onChange={(e) => setDirectorEmail(e.target.value)} placeholder="you@example.com" />
               </Field>
             </div>
           )}
@@ -267,6 +302,13 @@ export default function NewEvent() {
               <Field label="Minimum rest between a wrestler's matches (minutes)" hint={`The ${ruleset?.name} default is ${ruleset?.minRestMin} minutes.`}>
                 <Input type="number" min={0} max={120} value={rest} onChange={(e) => setRestMin(Number(e.target.value))} />
               </Field>
+              <label className="flex items-start gap-3 text-sm">
+                <input type="checkbox" className="mt-0.5 size-4" checked={listed} onChange={(e) => setListed(e.target.checked)} />
+                <span>
+                  <span className="font-medium">Show in the public tournament list</span>
+                  <span className="block text-slate-500">So families and teams can find it. You can change this later.</span>
+                </span>
+              </label>
               <ErrorBox error={create.error} />
             </div>
           )}
