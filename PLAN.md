@@ -323,8 +323,8 @@ Each feature lists **what it does**, **how we build it**, and **open questions**
 - [x] Public mat board (plus ?tv=1 gym TV mode)
 - [x] Follows and notifications: follow a wrestler or a whole team without an account; "My wrestlers" live status page; alerts (first match, in the hole, on deck, result) by web push or email, each sent once; installable app manifest for iPhone push
 - [x] Director live console: move bouts between mats, reorder, reset, fix results, resolve flagged conflicts
-- [ ] Team scores
-- [ ] NCAA riding-time clock on the table screen (engine supports it; UI doesn't yet)
+- [x] Team scores (NFHS-style advancement, bonus and placement points; adjustable in code, not yet in the UI)
+- [x] College riding-time clock on the table screen
 - [ ] Hosting and deploy (public site)
 - [ ] Stronger abuse protection on public registration (basic per-IP rate limits are in; add CAPTCHA or email confirmation before going public)
 - [ ] Location search by distance ("within 50 miles"): needs geocoding

@@ -124,6 +124,10 @@ export default function EventPublic() {
             <div className="font-bold">Mats: on deck & in the hole →</div>
             <div className="text-sm text-slate-600">Who's wrestling now on every mat, and who's next.</div>
           </Link>
+          <Link to={`/e/${slug}/teams`} className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 hover:ring-brand-600">
+            <div className="font-bold">Team scores →</div>
+            <div className="text-sm text-slate-600">Team standings as results come in.</div>
+          </Link>
         </div>
       </Page>
     </>

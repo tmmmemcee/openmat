@@ -39,3 +39,6 @@ export function penaltyButtons(ruleset: Ruleset): { kind: string; label: string;
   }
   return out;
 }
+
+/** "red" -> "Red" */
+export const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);

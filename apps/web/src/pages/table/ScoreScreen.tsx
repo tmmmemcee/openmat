@@ -1,12 +1,13 @@
 import { type BoutEnding, type BoutEvent, type Corner, type Ruleset, boutState, clock as fmtClock, finalizeBout } from "@openmat/core";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { type Bout, type Wrestler, api } from "../../api";
 import { mmss, useMatchClock } from "../../lib/clock";
 import { useEventMutation } from "../../lib/hooks";
 import { enqueue, flush, useOutbox } from "../../lib/outbox";
+import { useRidingClock } from "../../lib/riding";
 import { Button, Dialog, ErrorBox, Notice, Spinner, cx } from "../../ui";
-import { penaltyButtons } from "./labels";
+import { cap, penaltyButtons } from "./labels";
 
 interface BoutDetail {
   bout: Bout;
@@ -53,6 +54,20 @@ function Scoring({ slug, detail, ruleset, mat, onDone }: { slug: string; detail:
     const item = enqueue(slug, bout.id, { ...e, period: clock.period, matchTimeSec: clock.matchTimeSec });
     setLocal((l) => [...l, item.event as unknown as BoutEvent]);
   };
+  const riding = useRidingClock(bout.id, clock.running);
+  const tracksRiding = !!ruleset.ridingTimePointSec;
+  // Record the net riding advantage when the rider changes or the clock stops.
+  const lastRiding = useRef<string>("");
+  const saveRiding = () => {
+    if (!tracksRiding) return;
+    const { corner, seconds } = riding.advantage;
+    const sig = `${corner}:${seconds}`;
+    if (sig === lastRiding.current || (seconds === 0 && !lastRiding.current)) return;
+    lastRiding.current = sig;
+    add({ type: "riding-time", corner, seconds });
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(saveRiding, [clock.running, riding.rider]);
   const voided = new Set(events.filter((e) => e.type === "void").map((e) => (e as { target: string }).target));
   const lastActive = [...events].reverse().find((e) => e.type !== "void" && !voided.has(e.id));
 
@@ -140,6 +155,41 @@ function Scoring({ slug, detail, ruleset, mat, onDone }: { slug: string; detail:
           </div>
         </div>
 
+        {tracksRiding && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
+            <div>
+              <div className="text-xs font-bold text-slate-500 uppercase">Riding time</div>
+              <div className="font-mono text-2xl font-black tabular-nums">
+                {riding.advantage.seconds === 0 ? "0:00" : `${cap(ruleset.cornerColors[riding.advantage.corner])} +${mmss(riding.advantage.seconds)}`}
+              </div>
+              <div className="text-xs text-slate-500">
+                {riding.advantage.seconds >= ruleset.ridingTimePointSec! ? "Worth 1 point at the end" : `1 point at ${mmss(ruleset.ridingTimePointSec!)}`}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              {(["A", null, "B"] as (Corner | null)[]).map((c) => (
+                <button
+                  key={c ?? "none"}
+                  type="button"
+                  onClick={() => riding.setRider(c)}
+                  className={cx(
+                    "rounded-lg px-3 py-2 text-sm font-bold ring-2",
+                    riding.rider === c
+                      ? c === "A"
+                        ? "bg-red-600 text-white ring-red-600"
+                        : c === "B"
+                          ? "bg-emerald-600 text-white ring-emerald-600"
+                          : "bg-slate-700 text-white ring-slate-700"
+                      : "ring-slate-200",
+                  )}
+                >
+                  {c ? `${cap(ruleset.cornerColors[c])} on top` : "Neutral"}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {state.techFall && (
           <Notice tone="amber">
             {who(state.techFall.winner)?.firstName} leads by {ruleset.techFallMargin}+: technical fall. (High school: finish the near-fall first.)
@@ -159,7 +209,13 @@ function Scoring({ slug, detail, ruleset, mat, onDone }: { slug: string; detail:
           <Button variant="secondary" disabled={!lastActive} onClick={() => lastActive && add({ type: "void", target: lastActive.id, reason: "undo" })}>
             ↶ Undo last
           </Button>
-          <Button size="lg" onClick={() => setFinishing(true)}>
+          <Button
+            size="lg"
+            onClick={() => {
+              saveRiding();
+              setFinishing(true);
+            }}
+          >
             Finish bout
           </Button>
         </div>

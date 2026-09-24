@@ -10,6 +10,7 @@ import NewEvent from "./pages/NewEvent";
 import NotFound from "./pages/NotFound";
 import Recover from "./pages/Recover";
 import TeamRegister from "./pages/TeamRegister";
+import TeamScores from "./pages/TeamScores";
 import Tournaments from "./pages/Tournaments";
 import WeighIn from "./pages/WeighIn";
 
@@ -23,6 +24,7 @@ export const router = createBrowserRouter([
   { path: "/e/:slug/brackets", element: <Brackets /> },
   { path: "/e/:slug/mats", element: <MatBoard /> },
   { path: "/e/:slug/follow", element: <Follow /> },
+  { path: "/e/:slug/teams", element: <TeamScores /> },
   { path: "/e/:slug/table/:mat", element: <TableApp /> },
   { path: "/e/:slug/manage/:tab?", element: <Manage /> },
   { path: "/e/:slug/weigh-in", element: <WeighIn /> },

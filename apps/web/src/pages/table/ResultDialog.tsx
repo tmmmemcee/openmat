@@ -4,7 +4,7 @@ import { type Bout, api } from "../../api";
 import { type WrestlerMap, wrestlerName } from "../../components/BracketView";
 import { useEventMutation } from "../../lib/hooks";
 import { Button, Dialog, ErrorBox, Field, Input, Notice, Select, cx } from "../../ui";
-import { NEEDS_SCORE, NEEDS_TIME, WIN_TYPE_LABELS } from "./labels";
+import { NEEDS_SCORE, NEEDS_TIME, WIN_TYPE_LABELS, cap } from "./labels";
 
 /** Enter or fix a result by hand: winner, how, score, time. */
 export function ResultDialog({
@@ -76,10 +76,10 @@ export function ResultDialog({
         </Field>
         {NEEDS_SCORE.has(winType) && (
           <div className="grid grid-cols-2 gap-3">
-            <Field label={`${ruleset.cornerColors.A} score`}>
+            <Field label={`${cap(ruleset.cornerColors.A)} score`}>
               <Input type="number" inputMode="numeric" min={0} value={a} onChange={(e) => setA(e.target.value)} />
             </Field>
-            <Field label={`${ruleset.cornerColors.B} score`}>
+            <Field label={`${cap(ruleset.cornerColors.B)} score`}>
               <Input type="number" inputMode="numeric" min={0} value={b} onChange={(e) => setB(e.target.value)} />
             </Field>
           </div>

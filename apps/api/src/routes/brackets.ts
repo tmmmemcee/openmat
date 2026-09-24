@@ -10,6 +10,8 @@ import {
   poolScheduleBouts,
   resolveBracket,
   roundRobin,
+  type ScoredBracket,
+  teamScores,
 } from "@openmat/core";
 import { and, asc, eq, inArray, isNotNull, ne, or } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
@@ -116,6 +118,36 @@ export function bracketRoutes(app: FastifyInstance, db: Db, scheduler: Notificat
           .where(inArray(entries.id, ids))
       : [];
     return { brackets: views, wrestlers };
+  });
+
+  /** Team scores so far (advancement, bonus and placement points). Public. */
+  app.get<{ Params: { slug: string } }>("/api/events/:slug/team-scores", async (req) => {
+    const event = await loadEvent(db, req.params.slug);
+    const bs = await db.select().from(brackets).where(eq(brackets.eventId, event.id));
+    const views = await loadBracketViews(db, event.id);
+    const scored: ScoredBracket[] = views.map((v) => {
+      const row = bs.find((b) => b.id === v.id)!;
+      const core = coreBracket(row);
+      // Where each bout's winner goes next, for "bye followed by a win".
+      const winnerTo = new Map<string, string>();
+      for (const b of core?.bouts ?? []) {
+        for (const s of [b.top, b.bottom]) if (s.kind === "winner") winnerTo.set(s.bout, b.id);
+      }
+      return {
+        bouts: v.bouts.map((b) => ({
+          key: b.key,
+          section: b.section,
+          status: b.status,
+          winner: b.status === "bye" ? ([b.a, b.b].find((x) => x && x !== "BYE") ?? null) : b.winnerEntryId,
+          winType: b.result?.winType ?? null,
+          winnerTo: winnerTo.get(b.key) ?? null,
+        })),
+        places: v.places,
+      };
+    });
+    const people = await db.select({ id: entries.id, team: entries.team }).from(entries).where(eq(entries.eventId, event.id));
+    const teamOf = new Map(people.map((p) => [p.id, p.team]));
+    return teamScores(scored, (id) => teamOf.get(id) || undefined);
   });
 
   /** Make brackets for everyone: one per Madison group, or one per weight class. Replaces existing brackets. */

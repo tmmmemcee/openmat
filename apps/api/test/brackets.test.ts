@@ -152,3 +152,25 @@ describe("bracket labels", () => {
     for (const l of labels) expect(l).toMatch(/of bout \d+$/);
   });
 });
+
+describe("team scores", () => {
+  it("adds up points by team as results come in", async () => {
+    const s = await hsSetup(4);
+    await s.call("POST", "/brackets/generate", { format: "double-elim", places: 4 });
+    await s.call("POST", "/brackets/schedule", {});
+    const finish = async (key: string, winType: string, extra: object = {}) => {
+      const bout = (await s.call("GET", "/brackets")).json().brackets[0].bouts.find((x: { key: string }) => x.key === key);
+      await s.call("POST", `/bouts/${bout.id}/finish`, { mode: "manual", winner: "A", winType, ...extra });
+      return bout;
+    };
+    await finish("W1-1", "FALL");
+    expect((await s.call("GET", "/team-scores")).json()[0]).toMatchObject({ points: 4, advancement: 2, bonus: 2 });
+    await finish("W1-2", "DEC", { score: { A: 3, B: 1 } });
+    await finish("W2-1", "DEC", { score: { A: 3, B: 1 } });
+    await finish("L1-1", "DEC", { score: { A: 3, B: 1 } });
+    const scores = (await s.call("GET", "/team-scores")).json();
+    const total = scores.reduce((sum: number, t: { points: number }) => sum + t.points, 0);
+    // Advancement 2+2, fall bonus 2, places 16+12+9+7.
+    expect(total).toBe(50);
+  });
+});
