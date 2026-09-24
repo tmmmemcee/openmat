@@ -123,7 +123,7 @@ export function eventRoutes(app: FastifyInstance, db: Db, mailer: Mailer): void 
       })
       .parse(req.query);
     const today = new Date().toISOString().slice(0, 10);
-    const conditions = [eq(events.listed, true), gte(events.startDate, q.from ?? today)];
+    const conditions = [eq(events.listed, true), eq(events.isDemo, false), gte(events.startDate, q.from ?? today)];
     if (q.to) conditions.push(lte(events.startDate, q.to));
     if (q.state) conditions.push(eq(events.state, q.state));
     if (q.format) conditions.push(eq(events.format, q.format));
@@ -150,7 +150,7 @@ export function eventRoutes(app: FastifyInstance, db: Db, mailer: Mailer): void 
     const states = await db
       .selectDistinct({ state: events.state })
       .from(events)
-      .where(and(eq(events.listed, true), gte(events.startDate, today), ne(events.state, "")))
+      .where(and(eq(events.listed, true), eq(events.isDemo, false), gte(events.startDate, today), ne(events.state, "")))
       .orderBy(asc(events.state));
     return {
       events: rows.map((e) => ({
@@ -280,6 +280,7 @@ export function eventRoutes(app: FastifyInstance, db: Db, mailer: Mailer): void 
       city: event.city,
       state: event.state,
       listed: event.listed,
+      isDemo: event.isDemo,
       format: event.format,
       seasonYear: event.seasonYear,
       ruleset: ruleset && { id: ruleset.id, name: ruleset.name, summary: ruleset.summary, links: ruleset.links },

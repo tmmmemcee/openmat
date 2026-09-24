@@ -2,6 +2,7 @@ import { useQueries } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { type MatQueue, type QueueItem, api } from "../api";
+import { QrCode } from "../components/QrCode";
 import { useEvent } from "../lib/hooks";
 import { ErrorBox, Header, Input, Page, Spinner, cx } from "../ui";
 
@@ -38,7 +39,17 @@ export default function MatBoard() {
   if (tv) {
     return (
       <div className="min-h-screen bg-slate-900 p-4 text-white">
-        <h1 className="mb-4 text-3xl font-black">{event.data.name}</h1>
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <h1 className="text-3xl font-black">{event.data.name}</h1>
+          <div className="flex items-center gap-3">
+            <div className="text-right text-lg leading-tight font-bold">
+              Scan to follow
+              <br />
+              your wrestler
+            </div>
+            <QrCode text={`${window.location.origin}/e/${slug}/follow`} className="w-24 rounded-md" label="QR code: follow your wrestler" />
+          </div>
+        </div>
         {board}
       </div>
     );

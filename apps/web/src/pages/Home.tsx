@@ -1,5 +1,6 @@
 import { Link } from "react-router";
-import { Card, Header, Page } from "../ui";
+import { useStartDemo } from "../lib/demo";
+import { Button, Card, ErrorBox, Header, Page } from "../ui";
 
 const features = [
   ["Youth scratch-weight groups", "Groups kids of similar weight and age automatically. Move a kid up with one tap, never down."],
@@ -10,7 +11,21 @@ const features = [
   ["Free and open source", "No paywall on results or alerts. MIT licensed."],
 ];
 
+const demos = [
+  {
+    kind: "youth" as const,
+    title: "Youth tournament",
+    text: "51 kids from four clubs, grouped by weight at weigh-ins into round robins on 3 mats. Mid-morning, with matches live.",
+  },
+  {
+    kind: "high-school" as const,
+    title: "High school invitational",
+    text: "63 wrestlers in six weight classes, seeded double-elimination brackets on 4 mats, team scores adding up.",
+  },
+];
+
 export default function Home() {
+  const start = useStartDemo();
   return (
     <>
       <Header />
@@ -28,6 +43,9 @@ export default function Home() {
             <Link to="/tournaments" className="inline-flex rounded-lg px-6 py-3.5 text-base font-bold text-white ring-1 ring-white/40 hover:bg-white/10">
               Find a tournament
             </Link>
+            <a href="#demo" className="inline-flex rounded-lg px-6 py-3.5 text-base font-bold text-white ring-1 ring-white/40 hover:bg-white/10">
+              Try the live demo
+            </a>
           </div>
           <p className="mt-4 text-sm text-brand-100">
             Running a tournament and lost your link?{" "}
@@ -37,7 +55,30 @@ export default function Home() {
           </p>
         </div>
       </section>
-      <Page className="-mt-10">
+      <Page className="-mt-10 space-y-10">
+        <section id="demo" className="scroll-mt-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200 sm:p-6">
+          <h2 className="text-2xl font-extrabold">Try it with a real tournament</h2>
+          <p className="mt-1 max-w-2xl text-slate-600">
+            Get your own demo tournament, already in progress, and run it as the director. Score a match at a table, move bouts between mats, follow a wrestler
+            like a parent would. It takes a few seconds to set up, nobody else sees it, and it's deleted after a day.
+          </p>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {demos.map((d) => (
+              <div key={d.kind} className="flex flex-col justify-between gap-3 rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200">
+                <div>
+                  <h3 className="font-bold">{d.title}</h3>
+                  <p className="text-sm text-slate-600">{d.text}</p>
+                </div>
+                <Button disabled={start.isPending} onClick={() => start.mutate(d.kind)} className="self-start">
+                  {start.isPending && start.variables === d.kind ? "Setting up your tournament…" : "Start this demo →"}
+                </Button>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3">
+            <ErrorBox error={start.error} />
+          </div>
+        </section>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {features.map(([title, text]) => (
             <Card key={title}>

@@ -3,6 +3,7 @@ import type { Db } from "./db/client.js";
 import { registerErrorHandler } from "./errors.js";
 import { PUBLIC_BASE_URL } from "./config.js";
 import { type Mailer, createMailer } from "./mailer.js";
+import { demoRoutes } from "./routes/demo.js";
 import { followRoutes } from "./routes/follows.js";
 import { NotificationScheduler, type Notifier, createNotifier } from "./services/notify.js";
 import { boutRoutes } from "./routes/bouts.js";
@@ -26,6 +27,7 @@ export function buildApp(db: Db, options: FastifyServerOptions & { mailer?: Mail
   bracketRoutes(app, db, scheduler);
   boutRoutes(app, db, scheduler);
   followRoutes(app, db, notifier, scheduler);
+  demoRoutes(app, db);
   return app;
 }
 

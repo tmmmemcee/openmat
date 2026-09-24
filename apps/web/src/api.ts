@@ -62,6 +62,7 @@ export interface EventInfo {
   city: string;
   state: string;
   listed: boolean;
+  isDemo?: boolean;
   format: "madison" | "weight-classes";
   seasonYear: number;
   ruleset?: { id: string; name: string; summary: string; links: { label: string; url: string }[] };

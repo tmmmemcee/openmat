@@ -1,4 +1,5 @@
 import { Link, NavLink, useParams } from "react-router";
+import { DemoGuide } from "../../components/DemoGuide";
 import { useEvent } from "../../lib/hooks";
 import { formatDate, place } from "../../lib/format";
 import { ErrorBox, Header, Notice, Page, Spinner, cx } from "../../ui";
@@ -56,6 +57,7 @@ export default function Manage() {
           </a>
         }
       />
+      {ev.isDemo && <DemoGuide event={ev} />}
       <nav className="sticky top-0 z-10 border-b border-slate-200 bg-white" style={{ top: "env(safe-area-inset-top, 0px)" }}>
         <div className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4">
           {tabs.map(([key, label]) => (

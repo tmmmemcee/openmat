@@ -3,6 +3,8 @@ import { type EventInfo, api } from "../../api";
 import { useEntries, useEventMutation } from "../../lib/hooks";
 import { formatDate, formatTime, periods } from "../../lib/format";
 import { REGIONS } from "../../lib/states";
+import { Link } from "react-router";
+import { QrButton } from "../../components/QrCode";
 import { staffUrl } from "../../token";
 import { Badge, Button, Card, CopyButton, Dialog, ErrorBox, Field, Input, Select } from "../../ui";
 
@@ -45,7 +47,9 @@ export default function Overview({ event }: { event: EventInfo }) {
               {event.settings.registrationOpen ? "Close registration" : "Open registration"}
             </Button>
             <CopyButton text={publicUrl} label="Copy public link" />
+            <QrButton url={`${publicUrl}/follow`} title="Fans: follow your wrestler" note="Opens the tournament's follow page: brackets, mat times and alerts." />
             <CopyButton text={`${publicUrl}/team`} label="Copy team roster link" />
+            <QrButton url={`${publicUrl}/team`} title="Coaches: register your team" />
           </div>
           <p className="mt-2 text-xs text-slate-500">
             Coaches can use the team roster link to register their whole team at once by pasting from a spreadsheet.
@@ -66,6 +70,11 @@ export default function Overview({ event }: { event: EventInfo }) {
                   <span className="font-medium">{l.role === "weigh-in" ? "Weigh-in station" : `Mat ${l.mat} table`}</span>
                   <span className="flex gap-2">
                     <CopyButton text={staffUrl(event.slug, path, l.token)} label="Copy link" />
+                    <QrButton
+                      url={staffUrl(event.slug, path, l.token)}
+                      title={l.role === "weigh-in" ? "Weigh-in station" : `Mat ${l.mat} scoring table`}
+                      note="Scan with the tablet or phone that will be used at this station. Staff only."
+                    />
                     <Button
                       variant="ghost"
                       size="sm"
@@ -78,6 +87,11 @@ export default function Overview({ event }: { event: EventInfo }) {
               );
             })}
           </ul>
+          <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-slate-100 pt-3">
+            <Link to={`/e/${event.slug}/print/qr`} target="_blank" className="text-sm font-semibold text-brand-700">
+              🖨 Print QR codes: fan poster, weigh-in and table cards
+            </Link>
+          </div>
           <ErrorBox error={reset.error ?? update.error} />
         </Card>
       </div>

@@ -10,6 +10,7 @@ import NewEvent from "./pages/NewEvent";
 import NotFound from "./pages/NotFound";
 import BoutSheets from "./pages/print/BoutSheets";
 import PrintBrackets from "./pages/print/PrintBrackets";
+import PrintQr from "./pages/print/PrintQr";
 import Recover from "./pages/Recover";
 import TeamRegister from "./pages/TeamRegister";
 import TeamScores from "./pages/TeamScores";
@@ -29,6 +30,7 @@ export const router = createBrowserRouter([
   { path: "/e/:slug/teams", element: <TeamScores /> },
   { path: "/e/:slug/print/brackets", element: <PrintBrackets /> },
   { path: "/e/:slug/print/bouts", element: <BoutSheets /> },
+  { path: "/e/:slug/print/qr", element: <PrintQr /> },
   { path: "/e/:slug/table/:mat", element: <TableApp /> },
   { path: "/e/:slug/manage/:tab?", element: <Manage /> },
   { path: "/e/:slug/weigh-in", element: <WeighIn /> },

@@ -327,6 +327,8 @@ Each feature lists **what it does**, **how we build it**, and **open questions**
 - [x] College riding-time clock on the table screen
 - [x] Printables: brackets (one per landscape page, auto-scaled to fit) and bout sheets (two per page, by mat, with score grid, result boxes and signatures)
 - [x] Demo simulator: `pnpm --filter @openmat/api demo` builds a youth event and a high school invitational through the API and plays them to mid-event
+- [x] QR codes: QR button for every link on the Overview; printable fan poster, coach registration poster, weigh-in and per-mat table cards; follow QR on the gym TV screen
+- [x] Live demo on the home page: a fresh private tournament per visitor (youth or high school), mid-event, with a "Things to try" guide; never listed, deleted after 24 hours, rate-limited
 - [ ] Hosting and deploy (public site)
 - [ ] Stronger abuse protection on public registration (basic per-IP rate limits are in; add CAPTCHA or email confirmation before going public)
 - [ ] Location search by distance ("within 50 miles"): needs geocoding

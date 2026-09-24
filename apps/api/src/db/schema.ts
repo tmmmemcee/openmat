@@ -36,6 +36,8 @@ export const events = pgTable(
     startTime: text("start_time"),
     /** Shown in the public tournament list. */
     listed: boolean("listed").notNull().default(true),
+    /** A try-it-out copy from the home page's live demo; never listed, deleted after a day. */
+    isDemo: boolean("is_demo").notNull().default(false),
     /** Where to send a new director link if it's lost. Never shown publicly. */
     directorEmail: text("director_email"),
     format: text("format").$type<EventFormat>().notNull(),
