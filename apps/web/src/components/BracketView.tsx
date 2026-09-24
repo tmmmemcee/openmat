@@ -15,7 +15,7 @@ const formatLabel = (b: Bracket) =>
     ? "Round robin"
     : `${b.format === "double-elim" ? "Double elimination" : "Single elimination"} · ${b.size}-man${b.options.places ? ` · places 1–${b.options.places}` : ""}`;
 
-export function BracketView({ bracket, wrestlers, highlight }: { bracket: Bracket; wrestlers: WrestlerMap; highlight?: string | null }) {
+export function BracketView({ bracket, wrestlers, highlight, print }: { bracket: Bracket; wrestlers: WrestlerMap; highlight?: string | null; print?: boolean }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
@@ -23,9 +23,9 @@ export function BracketView({ bracket, wrestlers, highlight }: { bracket: Bracke
         <span>{bracket.draw.filter(Boolean).length} wrestlers</span>
       </div>
       {bracket.format === "round-robin" ? (
-        <RoundRobin bracket={bracket} wrestlers={wrestlers} highlight={highlight} />
+        <RoundRobin bracket={bracket} wrestlers={wrestlers} highlight={highlight} print={print} />
       ) : (
-        <Elimination bracket={bracket} wrestlers={wrestlers} highlight={highlight} />
+        <Elimination bracket={bracket} wrestlers={wrestlers} highlight={highlight} print={print} />
       )}
       {bracket.places.length > 0 && <Places bracket={bracket} wrestlers={wrestlers} />}
     </div>
@@ -97,7 +97,7 @@ export function BoutBox({ bout, wrestlers, highlight, compact }: { bout: Bout; w
   );
 }
 
-function RoundRobin({ bracket, wrestlers, highlight }: { bracket: Bracket; wrestlers: WrestlerMap; highlight?: string | null }) {
+function RoundRobin({ bracket, wrestlers, highlight, print }: { bracket: Bracket; wrestlers: WrestlerMap; highlight?: string | null; print?: boolean }) {
   const pool = bracket.draw.filter((x): x is string => !!x);
   const boutFor = (x: string, y: string) => bracket.bouts.find((b) => (b.a === x && b.b === y) || (b.a === y && b.b === x));
   const record = (id: string) => {
@@ -107,8 +107,8 @@ function RoundRobin({ bracket, wrestlers, highlight }: { bracket: Bracket; wrest
   };
   return (
     <div className="space-y-4">
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[32rem] text-sm">
+      <div className={print ? "" : "overflow-x-auto"}>
+        <table className={cx("w-full text-sm", !print && "min-w-[32rem]")}>
           <thead>
             <tr className="text-xs text-slate-500">
               <th className="p-2 text-left">Wrestler</th>
@@ -144,7 +144,7 @@ function RoundRobin({ bracket, wrestlers, highlight }: { bracket: Bracket; wrest
           </tbody>
         </table>
       </div>
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      <div className={cx("grid gap-2", print ? "grid-cols-3" : "sm:grid-cols-2 lg:grid-cols-3")}>
         {[...bracket.bouts]
           .sort((x, y) => (x.plannedStartMin ?? x.round * 1000) - (y.plannedStartMin ?? y.round * 1000))
           .map((b) => (
@@ -155,7 +155,7 @@ function RoundRobin({ bracket, wrestlers, highlight }: { bracket: Bracket; wrest
   );
 }
 
-function Elimination({ bracket, wrestlers, highlight }: { bracket: Bracket; wrestlers: WrestlerMap; highlight?: string | null }) {
+function Elimination({ bracket, wrestlers, highlight, print }: { bracket: Bracket; wrestlers: WrestlerMap; highlight?: string | null; print?: boolean }) {
   const bySection = (section: Bout["section"]) => bracket.bouts.filter((b) => b.section === section);
   const columns = (list: Bout[]) => {
     const rounds = [...new Set(list.map((b) => b.key.split("-")[0]!))];
@@ -165,10 +165,10 @@ function Elimination({ bracket, wrestlers, highlight }: { bracket: Bracket; wres
     list.length ? (
       <div>
         <h4 className="mb-2 text-sm font-bold text-slate-600 uppercase">{title}</h4>
-        <div className="overflow-x-auto pb-2">
-          <div className="flex min-w-max gap-3">
+        <div className={print ? "" : "overflow-x-auto pb-2"}>
+          <div className={cx("flex gap-3", !print && "min-w-max")}>
             {columns(list).map((col, i) => (
-              <div key={i} className="flex w-56 flex-col justify-around gap-2">
+              <div key={i} className={cx("flex flex-col justify-around gap-2", print ? "w-44 shrink-0" : "w-56")}>
                 <div className="text-center text-xs font-semibold text-slate-500">{col[0]!.label}</div>
                 {col.map((b) =>
                   b.status === "bye" ? (
@@ -186,14 +186,16 @@ function Elimination({ bracket, wrestlers, highlight }: { bracket: Bracket; wres
       </div>
     ) : null;
   const placement = bySection("placement").filter((b) => b.status !== "not-needed");
+  // On paper (landscape), championship and wrestlebacks sit side by side to use the page's width.
   return (
-    <div className="space-y-5">
+    <div className={print ? "flex items-start gap-8" : "space-y-5"}>
       <Columns list={bySection("championship")} title="Championship" />
+      <div className="space-y-5">
       <Columns list={bySection("consolation")} title="Wrestlebacks" />
       {placement.length > 0 && (
         <div>
           <h4 className="mb-2 text-sm font-bold text-slate-600 uppercase">Placement matches</h4>
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <div className={cx("grid gap-2", print ? "grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-4")}>
             {placement.map((b) => (
               <div key={b.id}>
                 <div className="mb-1 text-xs font-semibold text-slate-500">{b.label}</div>
@@ -203,6 +205,7 @@ function Elimination({ bracket, wrestlers, highlight }: { bracket: Bracket; wres
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

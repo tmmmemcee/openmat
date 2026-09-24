@@ -8,6 +8,8 @@ import Home from "./pages/Home";
 import Manage from "./pages/manage/Manage";
 import NewEvent from "./pages/NewEvent";
 import NotFound from "./pages/NotFound";
+import BoutSheets from "./pages/print/BoutSheets";
+import PrintBrackets from "./pages/print/PrintBrackets";
 import Recover from "./pages/Recover";
 import TeamRegister from "./pages/TeamRegister";
 import TeamScores from "./pages/TeamScores";
@@ -25,6 +27,8 @@ export const router = createBrowserRouter([
   { path: "/e/:slug/mats", element: <MatBoard /> },
   { path: "/e/:slug/follow", element: <Follow /> },
   { path: "/e/:slug/teams", element: <TeamScores /> },
+  { path: "/e/:slug/print/brackets", element: <PrintBrackets /> },
+  { path: "/e/:slug/print/bouts", element: <BoutSheets /> },
   { path: "/e/:slug/table/:mat", element: <TableApp /> },
   { path: "/e/:slug/manage/:tab?", element: <Manage /> },
   { path: "/e/:slug/weigh-in", element: <WeighIn /> },

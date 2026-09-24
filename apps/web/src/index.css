@@ -16,3 +16,9 @@ html {
 body {
   @apply bg-slate-50 text-slate-900 antialiased;
 }
+
+@media print {
+  body {
+    background: white;
+  }
+}

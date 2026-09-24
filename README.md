@@ -42,6 +42,8 @@ Environment variables for the API (all optional in development):
 - `SMTP_URL` / `MAIL_FROM`: send real email (e.g. `smtps://user:pass@smtp.example.com:465`). Without it, emails are printed to the API log.
 - `TRUST_PROXY=1`: behind a reverse proxy, so rate limits see real client IPs
 
+To try it with realistic data: `pnpm --filter @openmat/api demo` creates two tournaments mid-event and prints their director links.
+
 If a director lost their link and gave no email: `pnpm --filter @openmat/api director-link <event slug>` prints a new one.
 
 First time only, create the test database:

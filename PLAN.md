@@ -325,6 +325,8 @@ Each feature lists **what it does**, **how we build it**, and **open questions**
 - [x] Director live console: move bouts between mats, reorder, reset, fix results, resolve flagged conflicts
 - [x] Team scores (NFHS-style advancement, bonus and placement points; adjustable in code, not yet in the UI)
 - [x] College riding-time clock on the table screen
+- [x] Printables: brackets (one per landscape page, auto-scaled to fit) and bout sheets (two per page, by mat, with score grid, result boxes and signatures)
+- [x] Demo simulator: `pnpm --filter @openmat/api demo` builds a youth event and a high school invitational through the API and plays them to mid-event
 - [ ] Hosting and deploy (public site)
 - [ ] Stronger abuse protection on public registration (basic per-IP rate limits are in; add CAPTCHA or email confirmation before going public)
 - [ ] Location search by distance ("within 50 miles"): needs geocoding

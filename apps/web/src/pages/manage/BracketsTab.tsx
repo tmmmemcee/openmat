@@ -119,8 +119,18 @@ export default function BracketsTab({ event }: { event: EventInfo }) {
             </span>
           )}
           {scheduledCount > 0 && (
-            <Link to={`/e/${slug}/mats`} target="_blank" className="text-sm font-semibold text-brand-700">
-              Mat board ↗
+            <>
+              <Link to={`/e/${slug}/mats`} target="_blank" className="text-sm font-semibold text-brand-700">
+                Mat board ↗
+              </Link>
+              <Link to={`/e/${slug}/print/bouts`} target="_blank" className="text-sm font-semibold text-brand-700">
+                🖨 Bout sheets
+              </Link>
+            </>
+          )}
+          {brackets.length > 0 && (
+            <Link to={`/e/${slug}/print/brackets`} target="_blank" className="text-sm font-semibold text-brand-700">
+              🖨 Print brackets
             </Link>
           )}
         </div>
@@ -168,6 +178,9 @@ export default function BracketsTab({ event }: { event: EventInfo }) {
                       <Button variant="ghost" size="sm" onClick={() => setViewing(b)}>
                         View
                       </Button>
+                      <Link to={`/e/${slug}/print/brackets?b=${b.id}`} target="_blank" className="px-2 text-sm font-semibold text-slate-600" title="Print this bracket">
+                        🖨
+                      </Link>
                     </td>
                   </tr>
                 );
