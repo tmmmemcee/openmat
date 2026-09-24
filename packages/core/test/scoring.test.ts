@@ -10,6 +10,7 @@ import {
   boutState,
   clock,
   finalizeBout,
+  manualOutcome,
 } from "../src/index.js";
 
 let n = 0;
@@ -183,5 +184,23 @@ describe("ruleset data", () => {
   it("formats clock time", () => {
     expect(clock(96)).toBe("1:36");
     expect(clock(5)).toBe("0:05");
+  });
+});
+
+describe("result-only entry", () => {
+  it("accepts results that match the rules and writes the score sheet text", () => {
+    expect(manualOutcome(NFHS_2025_26, { winner: "A", winType: "DEC", score: { A: 7, B: 3 } })).toMatchObject({ ok: true, outcome: { summary: "Dec 7-3", teamPoints: 3 } });
+    expect(manualOutcome(NFHS_2025_26, { winner: "B", winType: "FALL", matchTimeSec: 83 })).toMatchObject({ ok: true, outcome: { summary: "F 1:23", teamPoints: 6 } });
+    expect(manualOutcome(NFHS_2025_26, { winner: "A", winType: "FOR" })).toMatchObject({ ok: true, outcome: { summary: "For." } });
+    expect(manualOutcome(UWW_FREESTYLE_2025, { winner: "A", winType: "VSU1", score: { A: 12, B: 2 } })).toMatchObject({ ok: true, outcome: { classificationPoints: [4, 1] } });
+  });
+
+  it("catches results that don't add up", () => {
+    expect(manualOutcome(NFHS_2025_26, { winner: "A", winType: "DEC", score: { A: 12, B: 3 } })).toMatchObject({ ok: false, message: expect.stringContaining("major") });
+    expect(manualOutcome(NFHS_2025_26, { winner: "A", winType: "MD", score: { A: 3, B: 5 } })).toMatchObject({ ok: false, message: expect.stringContaining("higher score") });
+    expect(manualOutcome(NFHS_2025_26, { winner: "A", winType: "TF", score: { A: 14, B: 0 } })).toMatchObject({ ok: false });
+    expect(manualOutcome(NFHS_2025_26, { winner: "A", winType: "DEC" })).toMatchObject({ ok: false, message: "Enter the final score." });
+    expect(manualOutcome(NFHS_2025_26, { winner: "A", winType: "VPO" })).toMatchObject({ ok: false });
+    expect(manualOutcome(UWW_GRECO_2025, { winner: "A", winType: "VPO", score: { A: 3, B: 1 } })).toMatchObject({ ok: false });
   });
 });

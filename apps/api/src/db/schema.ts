@@ -1,4 +1,4 @@
-import { boolean, index, integer, jsonb, pgTable, real, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { bigserial, boolean, index, integer, jsonb, pgTable, real, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 /**
  * How the event forms brackets:
@@ -123,6 +123,8 @@ export const entries = pgTable(
     weighedAt: timestamp("weighed_at", { withTimezone: true }),
     /** Weight class entered (weight-classes events), e.g. "113". */
     weightClass: text("weight_class"),
+    /** Seed within their bracket (weight class or group); null = unseeded, drawn randomly. */
+    seed: integer("seed"),
     /** Wrestle-up overrides (never down). */
     bumpAge: integer("bump_age").notNull().default(0),
     bumpWeight: integer("bump_weight").notNull().default(0),
@@ -166,4 +168,113 @@ export const groupMembers = pgTable(
       .references(() => entries.id, { onDelete: "cascade" }),
   },
   (t) => [uniqueIndex("group_members_entry_idx").on(t.entryId), index("group_members_group_idx").on(t.groupId)],
+);
+
+export type BracketFormat = "round-robin" | "double-elim" | "single-elim";
+
+export interface BracketOptions {
+  /** Double elim: places wrestled for. */
+  places?: 4 | 6 | 8;
+  trueSecond?: boolean;
+  /** Single elim. */
+  thirdPlace?: boolean;
+}
+
+/** One bracket: a Madison group, or one weight class in a division. */
+export const brackets = pgTable(
+  "brackets",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    divisionId: uuid("division_id")
+      .notNull()
+      .references(() => divisions.id, { onDelete: "cascade" }),
+    /** Madison group this bracket was made from. */
+    groupId: uuid("group_id").references(() => groups.id, { onDelete: "set null" }),
+    /** Weight class this bracket is for (weight-classes events). */
+    weightClass: text("weight_class"),
+    /** Display name, e.g. "10U Boys · Group 3" or "High School Boys · 113". */
+    name: text("name").notNull(),
+    format: text("format").$type<BracketFormat>().notNull(),
+    options: jsonb("options").$type<BracketOptions>().notNull().default({}),
+    /** Elimination: bracket size (power of 2). */
+    size: integer("size"),
+    /** Entry ids by seed (index 0 = seed 1); null = bye. Round robin: the pool, in order. */
+    draw: jsonb("draw").$type<(string | null)[]>().notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("brackets_event_idx").on(t.eventId)],
+);
+
+export interface BoutResult {
+  winner: "A" | "B";
+  winType: string;
+  score: { A: number; B: number };
+  summary: string;
+  teamPoints: number;
+  classificationPoints?: [number, number];
+}
+
+/**
+ * A bout. For round robins the wrestlers are fixed (entryA/entryB). For
+ * elimination brackets they're worked out from the draw and earlier results
+ * each time (so corrections flow through), and entryA/entryB are filled in
+ * when the bout is wrestled, to record who actually wrestled.
+ */
+export const bouts = pgTable(
+  "bouts",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    bracketId: uuid("bracket_id")
+      .notNull()
+      .references(() => brackets.id, { onDelete: "cascade" }),
+    /** Bout id within its bracket: "W1-2", "L3-1", "P3" (elimination) or "1", "2"... (round robin). */
+    key: text("key").notNull(),
+    round: integer("round").notNull(),
+    entryA: uuid("entry_a").references(() => entries.id, { onDelete: "set null" }),
+    entryB: uuid("entry_b").references(() => entries.id, { onDelete: "set null" }),
+    mat: integer("mat"),
+    /** Position in the mat's queue. */
+    matOrder: integer("mat_order"),
+    boutNumber: text("bout_number"),
+    /** Planned start, minutes after the event's start time. */
+    plannedStartMin: integer("planned_start_min"),
+    durationMin: real("duration_min").notNull(),
+    /** Bouts (ids) that must finish, plus rest, before this one. */
+    after: jsonb("after").$type<{ boutId: string; restMin: number }[]>().notNull().default([]),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    endedAt: timestamp("ended_at", { withTimezone: true }),
+    winnerEntryId: uuid("winner_entry_id").references(() => entries.id, { onDelete: "set null" }),
+    result: jsonb("result").$type<BoutResult>(),
+  },
+  (t) => [
+    index("bouts_event_idx").on(t.eventId),
+    uniqueIndex("bouts_bracket_key_idx").on(t.bracketId, t.key),
+    index("bouts_mat_idx").on(t.eventId, t.mat, t.matOrder),
+  ],
+);
+
+/** Scoring log, append-only. Ids come from the device so retries are safe. */
+export const boutEvents = pgTable(
+  "bout_events",
+  {
+    id: text("id").primaryKey(),
+    /** Order the events were saved in. */
+    seq: bigserial("seq", { mode: "number" }).notNull(),
+    boutId: uuid("bout_id")
+      .notNull()
+      .references(() => bouts.id, { onDelete: "cascade" }),
+    /** The event as the scoring engine reads it (score, penalty, void...). */
+    data: jsonb("data").$type<Record<string, unknown>>().notNull(),
+    /** Who entered it: "director" or "table:3". */
+    by: text("by").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("bout_events_bout_idx").on(t.boutId, t.seq)],
 );

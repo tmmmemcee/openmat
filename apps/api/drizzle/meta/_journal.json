@@ -15,6 +15,20 @@
       "when": 1790277737624,
       "tag": "0001_absent_absorbing_man",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790278273208,
+      "tag": "0002_chunky_shatterstar",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790278294659,
+      "tag": "0003_mysterious_blockbuster",
+      "breakpoints": true
     }
   ]
 }

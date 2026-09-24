@@ -320,3 +320,69 @@ function ordinal(n: number): string {
   const suffix = n % 100 >= 11 && n % 100 <= 13 ? "th" : (["th", "st", "nd", "rd"][n % 10] ?? "th");
   return `${n}${suffix}`;
 }
+
+// ---------------------------------------------------------------------------
+// Result-only entry (tables that don't score live)
+// ---------------------------------------------------------------------------
+
+export interface ManualResult {
+  winner: Corner;
+  winType: WinType;
+  /** Final score; needed for decisions, majors, tech falls. */
+  score?: Record<Corner, number>;
+  /** Match time of a fall, injury default or tech fall. */
+  matchTimeSec?: number;
+}
+
+const SCORED: WinType[] = ["DEC", "MD", "TF", "VPO", "VPO1", "VSU", "VSU1"];
+
+/** Check a hand-entered result against the rules and produce the official outcome. */
+export function manualOutcome(ruleset: Ruleset, r: ManualResult): FinalizeResult {
+  const fail = (message: string): FinalizeResult => ({ ok: false, reason: "unresolved-tie", message });
+  if (!(r.winType in ruleset.teamPoints)) return fail(`${r.winType} isn't a result type in ${ruleset.name}.`);
+  const score = r.score ?? { A: 0, B: 0 };
+  const loser = other(r.winner);
+  const margin = score[r.winner] - score[loser];
+
+  if (SCORED.includes(r.winType)) {
+    if (!r.score) return fail("Enter the final score.");
+    if (margin <= 0) return fail("The winner needs the higher score.");
+    const tf = ruleset.techFallMargin;
+    const major = ruleset.majorDecisionMargin ?? Infinity;
+    if (r.winType === "DEC" && margin >= major) return fail(`A ${margin}-point win is a major decision.`);
+    if (r.winType === "MD" && (margin < major || margin >= tf)) return fail(`A major decision is a ${major}-${tf - 1} point win.`);
+    if ((r.winType === "TF" || r.winType === "VSU" || r.winType === "VSU1") && margin < tf) return fail(`A technical fall needs a ${tf}-point lead.`);
+    if ((r.winType === "VPO" || r.winType === "VSU") && score[loser] > 0) return fail(`${r.winType} means the loser didn't score; use ${r.winType}1.`);
+    if ((r.winType === "VPO1" || r.winType === "VSU1") && score[loser] === 0) return fail(`The loser didn't score; use ${r.winType.slice(0, 3)}.`);
+    if ((r.winType === "DEC" || r.winType === "VPO" || r.winType === "VPO1") && margin >= tf) return fail(`A ${margin}-point lead is a technical fall.`);
+  }
+
+  const t = r.matchTimeSec;
+  const text = `${score[r.winner]}-${score[loser]}`;
+  const summaries: Partial<Record<WinType, string>> = {
+    DEC: `Dec ${text}`,
+    MD: `MD ${text}`,
+    TF: `TF ${text}${t !== undefined ? ` (${clock(t)})` : ""}`,
+    FALL: t !== undefined ? `F ${clock(t)}` : "F",
+    FOR: "For.",
+    INJ: t !== undefined ? `Inj. ${clock(t)}` : "Inj.",
+    DQ: "DQ",
+    MFF: "M. For.",
+    VPO: `VPO ${text}`,
+    VPO1: `VPO1 ${text}`,
+    VSU: `VSU ${text}`,
+    VSU1: `VSU1 ${text}`,
+  };
+  const cp = ruleset.classificationPoints?.[r.winType];
+  return {
+    ok: true,
+    outcome: {
+      winner: r.winner,
+      winType: r.winType,
+      score,
+      teamPoints: ruleset.teamPoints[r.winType] ?? 0,
+      ...(cp ? { classificationPoints: cp } : {}),
+      summary: summaries[r.winType] ?? r.winType,
+    },
+  };
+}

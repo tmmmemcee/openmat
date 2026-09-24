@@ -42,6 +42,7 @@ const entryPatch = z.object({
   declaredWeight: optionalNumber(20, 500),
   weight: optionalNumber(20, 500),
   weightClass: z.string().trim().max(10).nullish(),
+  seed: z.number().int().min(1).max(64).nullish(),
   bumpAge: z.number().int().min(0, "Wrestlers can only move up, never down").max(3).optional(),
   bumpWeight: z.number().int().min(0, "Wrestlers can only move up, never down").max(3).optional(),
   consent: z.boolean().optional(),
