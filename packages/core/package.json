@@ -1,0 +1,17 @@
+{
+  "name": "@openmat/core",
+  "version": "0.0.1",
+  "description": "Pure tournament logic: age divisions, youth weight grouping, round robin, standings.",
+  "license": "MIT",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.1"
+  }
+}
