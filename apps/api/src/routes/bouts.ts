@@ -25,6 +25,13 @@ const boutEventInput = z.discriminatedUnion("type", [
   z.object({ ...eventMeta, type: z.literal("score"), corner, action: z.string().max(10) }),
   z.object({ ...eventMeta, type: z.literal("penalty"), corner, kind: z.string().max(30), points: z.number().int().min(0).max(5).optional() }),
   z.object({ ...eventMeta, type: z.literal("riding-time"), corner, seconds: z.number().min(0).max(3600) }),
+  z.object({
+    ...eventMeta,
+    type: z.literal("position"),
+    position: z.enum(["neutral", "A-top", "B-top"]),
+    chooser: corner.optional(),
+    choice: z.enum(["top", "bottom", "neutral", "defer"]).optional(),
+  }),
   z.object({ ...eventMeta, type: z.literal("void"), target: z.string().max(64) }),
 ]);
 
@@ -87,7 +94,12 @@ export function boutRoutes(app: FastifyInstance, db: Db, scheduler: Notification
     const mat = Number(req.params.mat);
     if (!Number.isInteger(mat) || mat < 1 || mat > event.settings.mats) throw new HttpError(404, "No such mat.");
     const views = await loadBracketViews(db, event.id);
-    const queue = matQueues(views, event.settings.mats).get(mat) ?? [];
+    const ruleset = rulesetFor(event);
+    const queue = await Promise.all(
+      (matQueues(views, event.settings.mats).get(mat) ?? []).map(async (q) =>
+        q.bout.status === "wrestling" ? { ...q, live: await liveDetails(db, ruleset, q.bout) } : q,
+      ),
+    );
     const ids = [...new Set(queue.flatMap((q) => [q.bout.a, q.bout.b]).filter((x): x is string => !!x && x !== BYE))];
     const recent = views
       .flatMap((b) => b.bouts.map((x) => ({ bout: x, bracketName: b.name })))
@@ -98,7 +110,7 @@ export function boutRoutes(app: FastifyInstance, db: Db, scheduler: Notification
     const wrestlers = ids.length
       ? await db.select({ id: entries.id, firstName: entries.firstName, lastName: entries.lastName, team: entries.team }).from(entries).where(inArray(entries.id, ids))
       : [];
-    return { mat, queue, recent, wrestlers };
+    return { mat, queue, recent, wrestlers, serverNow: new Date().toISOString() };
   });
 
   /** Everything the scoring screen needs for one bout. */
@@ -124,6 +136,17 @@ export function boutRoutes(app: FastifyInstance, db: Db, scheduler: Notification
       ...(access ? { events: log.map((e) => ({ ...e.data, id: e.id, by: e.by, createdAt: e.createdAt })) } : {}),
       state: boutState(ruleset, events),
     };
+  });
+
+  /** The table reports its match clock (start, stop, new period, corrections) so live views can show it. */
+  app.post<{ Params: { slug: string; id: string } }>("/api/events/:slug/bouts/:id/clock", async (req) => {
+    const event = await loadEvent(db, req.params.slug);
+    const access = await requireRole(db, req, event.id, "table");
+    const { view } = await findBout(db, event, req.params.id);
+    checkMat(access, view);
+    const input = z.object({ period: z.number().int().min(1).max(20), remainingSec: z.number().min(0).max(3600), running: z.boolean() }).parse(req.body);
+    await db.update(bouts).set({ clock: { ...input, at: new Date().toISOString() } }).where(eq(bouts.id, view.id));
+    return { ok: true };
   });
 
   /** Start the clock on a bout: both wrestlers must be known. */
@@ -280,4 +303,14 @@ export function boutRoutes(app: FastifyInstance, db: Db, scheduler: Notification
       .where(and(eq(bouts.id, view.id), eq(bouts.eventId, event.id)));
     return { ok: true };
   });
+}
+
+/** Score, position and clock of a bout being wrestled, for live views. */
+async function liveDetails(db: Db, ruleset: ReturnType<typeof rulesetFor>, bout: BoutView) {
+  const state = boutState(ruleset, toEngineEvents(await loadBoutEvents(db, bout.id)));
+  return {
+    score: state.score,
+    position: ruleset.tracksPosition ? state.position : null,
+    clock: bout.clock ?? null,
+  };
 }

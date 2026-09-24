@@ -144,3 +144,36 @@ describe("director console", () => {
     expect(res.statusCode).toBe(409);
   });
 });
+
+describe("position in the scoring log", () => {
+  it("accepts period choices and reports the position", async () => {
+    const s = await setup();
+    const semi = await s.bout("W1-1");
+    const t = s.tableAuth(semi.mat);
+    const res = (await s.post(`/bouts/${semi.id}/events`, t, {
+      events: [
+        ev({ type: "score", corner: "A", action: "T3", period: 1 }),
+        ev({ type: "position", position: "B-top", chooser: "B", choice: "top", period: 2 }),
+      ],
+    })).json();
+    expect(res.state.position).toBe("B-top");
+    expect(res.state.positionPeriods).toEqual([2]);
+  });
+});
+
+describe("live details for the mat board", () => {
+  it("shows score, position and the table's clock for bouts in progress", async () => {
+    const s = await setup();
+    const semi = await s.bout("W1-1");
+    const t = s.tableAuth(semi.mat);
+    await s.post(`/bouts/${semi.id}/events`, t, { events: [ev({ type: "score", corner: "B", action: "T3", period: 1, matchTimeSec: 40 })] });
+    await s.post(`/bouts/${semi.id}/clock`, t, { period: 1, remainingSec: 80, running: true });
+    const q = (await app.inject({ url: `/api/events/${s.slug}/mats/${semi.mat}` })).json();
+    const live = q.queue.find((x: { bout: { id: string } }) => x.bout.id === semi.id).live;
+    expect(live).toMatchObject({ score: { A: 0, B: 3 }, position: "B-top", clock: { period: 1, remainingSec: 80, running: true } });
+    expect(q.serverNow).toBeTruthy();
+    // Other mats' tables can't set this bout's clock.
+    const other = semi.mat === 1 ? 2 : 1;
+    expect((await s.post(`/bouts/${semi.id}/clock`, s.tableAuth(other), { period: 1, remainingSec: 10, running: false })).statusCode).toBe(403);
+  });
+});

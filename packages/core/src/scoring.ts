@@ -12,7 +12,7 @@
  * ("Dec 8-3", "TF 18-2 (5:19)", "F 1:36", "VPO1 5-3").
  */
 
-import type { Corner, Ruleset, WinType } from "./rulesets.js";
+import type { Corner, Ruleset, ScoringAction, WinType, WrestlerPosition } from "./rulesets.js";
 
 interface EventMeta {
   id: string;
@@ -33,8 +33,17 @@ export type BoutEvent = EventMeta &
     | { type: "penalty"; corner: Corner; kind: string; points?: number }
     /** Net riding time advantage so far, for `corner` (NCAA). The latest entry counts. */
     | { type: "riding-time"; corner: Corner; seconds: number }
+    /**
+     * Folkstyle position set by the table: a period-start choice (who chose
+     * and what), the start of a neutral period, or a correction.
+     */
+    | { type: "position"; position: BoutPosition; chooser?: Corner; choice?: PeriodChoice }
     | { type: "void"; target: string }
   );
+
+/** Where the wrestlers are: both standing, or which corner is on top. */
+export type BoutPosition = "neutral" | "A-top" | "B-top";
+export type PeriodChoice = "top" | "bottom" | "neutral" | "defer";
 
 export interface ScoreLine {
   eventId: string;
@@ -66,8 +75,40 @@ export interface BoutState {
   ridingAdvantage?: { corner: Corner; seconds: number };
   /** First moment the lead reached the tech fall margin. */
   techFall?: { winner: Corner; eventId: string };
+  /** Folkstyle: current position (starts neutral). */
+  position: BoutPosition;
+  /** Periods in which the table recorded a position (e.g. a period-start choice). */
+  positionPeriods: number[];
+  /** Scores entered from the wrong position (e.g. two takedowns in a row). Still counted; shown so the table can fix them. */
+  outOfPosition: string[];
   /** Entries that couldn't be scored (unknown action, bad void...). */
   errors: string[];
+}
+
+/** A wrestler's own position given the bout position. */
+export function positionOf(position: BoutPosition, corner: Corner): WrestlerPosition {
+  if (position === "neutral") return "neutral";
+  return position === `${corner}-top` ? "top" : "bottom";
+}
+
+/** The bout position after `corner` ends up in `own` position. */
+export function boutPositionFor(corner: Corner, own: WrestlerPosition): BoutPosition {
+  if (own === "neutral") return "neutral";
+  const other: Corner = corner === "A" ? "B" : "A";
+  return own === "top" ? `${corner}-top` : `${other}-top`;
+}
+
+/** The bout position a period-start choice leads to (null for "defer": the other wrestler chooses). */
+export function positionFromChoice(chooser: Corner, choice: PeriodChoice): BoutPosition | null {
+  if (choice === "defer") return null;
+  return boutPositionFor(chooser, choice);
+}
+
+/** Scoring actions `corner` can score right now. Every action when the rule set doesn't track position. */
+export function allowedActions(ruleset: Ruleset, state: Pick<BoutState, "position">, corner: Corner): ScoringAction[] {
+  if (!ruleset.tracksPosition) return ruleset.actions;
+  const own = positionOf(state.position, corner);
+  return ruleset.actions.filter((a) => !a.from || a.from.includes(own));
 }
 
 const other = (c: Corner): Corner => (c === "A" ? "B" : "A");
@@ -82,6 +123,9 @@ export function boutState(ruleset: Ruleset, events: BoutEvent[]): BoutState {
     penaltyCounts: { A: {}, B: {} },
     cautions: { A: 0, B: 0 },
     warnings: [],
+    position: "neutral",
+    positionPeriods: [],
+    outOfPosition: [],
     errors: [...active.errors],
   };
   const actions = new Map(ruleset.actions.map((a) => [a.code, a]));
@@ -102,6 +146,10 @@ export function boutState(ruleset: Ruleset, events: BoutEvent[]): BoutState {
       if (!action) {
         state.errors.push(`Event ${e.id}: "${e.action}" isn't a scoring action in ${ruleset.name}.`);
         continue;
+      }
+      if (ruleset.tracksPosition) {
+        if (action.from && !action.from.includes(positionOf(state.position, e.corner))) state.outOfPosition.push(e.id);
+        if (action.to) state.position = boutPositionFor(e.corner, action.to);
       }
       addLine({ eventId: e.id, corner: e.corner, points: action.points, code: action.code, label: action.label, technical: action.technical, ...where });
     } else if (e.type === "penalty") {
@@ -141,6 +189,9 @@ export function boutState(ruleset: Ruleset, events: BoutEvent[]): BoutState {
       });
     } else if (e.type === "riding-time") {
       state.ridingAdvantage = { corner: e.corner, seconds: e.seconds };
+    } else if (e.type === "position") {
+      state.position = e.position;
+      if (e.period !== undefined && !state.positionPeriods.includes(e.period)) state.positionPeriods.push(e.period);
     }
   }
   return state;

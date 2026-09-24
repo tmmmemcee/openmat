@@ -213,6 +213,13 @@ export const brackets = pgTable(
   (t) => [index("brackets_event_idx").on(t.eventId)],
 );
 
+export interface BoutClock {
+  period: number;
+  remainingSec: number;
+  running: boolean;
+  at: string;
+}
+
 export interface BoutResult {
   winner: "A" | "B";
   winType: string;
@@ -254,6 +261,8 @@ export const bouts = pgTable(
     after: jsonb("after").$type<{ boutId: string; restMin: number }[]>().notNull().default([]),
     startedAt: timestamp("started_at", { withTimezone: true }),
     endedAt: timestamp("ended_at", { withTimezone: true }),
+    /** Match clock as last reported by the table, for live views. `at` is server time. */
+    clock: jsonb("clock").$type<BoutClock>(),
     winnerEntryId: uuid("winner_entry_id").references(() => entries.id, { onDelete: "set null" }),
     result: jsonb("result").$type<BoutResult>(),
   },

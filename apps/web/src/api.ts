@@ -203,7 +203,14 @@ export interface Wrestler {
   weight?: number | null;
 }
 
+export interface LiveDetails {
+  score: { A: number; B: number };
+  position: "neutral" | "A-top" | "B-top" | null;
+  clock: { period: number; remainingSec: number; running: boolean; at: string } | null;
+}
+
 export interface QueueItem {
+  live?: LiveDetails;
   bout: Bout;
   bracketName: string;
   position: "wrestling" | "on-deck" | "in-the-hole" | "queued";
@@ -217,4 +224,6 @@ export interface MatQueue {
   queue: QueueItem[];
   recent: { bout: Bout; bracketName: string }[];
   wrestlers: Wrestler[];
+  /** Server time when this was sent, to run clocks without device clock skew. */
+  serverNow: string;
 }

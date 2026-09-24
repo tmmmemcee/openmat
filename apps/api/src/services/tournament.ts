@@ -45,6 +45,7 @@ export interface BoutView {
   after: { boutId: string; restMin: number }[];
   startedAt: Date | null;
   endedAt: Date | null;
+  clock: BoutRow["clock"];
   winnerEntryId: string | null;
   result: BoutRow["result"];
   conflict?: string;
@@ -124,6 +125,7 @@ export function viewBracket(bracket: BracketRow, rows: BoutRow[]): BracketView {
     after: r.after,
     startedAt: r.startedAt,
     endedAt: r.endedAt,
+    clock: r.clock,
     winnerEntryId: r.winnerEntryId,
     result: r.result,
   });

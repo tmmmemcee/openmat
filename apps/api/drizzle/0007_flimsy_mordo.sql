@@ -1,0 +1,1 @@
+ALTER TABLE "bouts" ADD COLUMN "clock" jsonb;

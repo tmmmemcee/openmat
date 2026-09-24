@@ -9,8 +9,10 @@ import {
   UWW_GRECO_2025,
   boutState,
   clock,
+  allowedActions,
   finalizeBout,
   manualOutcome,
+  positionFromChoice,
 } from "../src/index.js";
 
 let n = 0;
@@ -202,5 +204,55 @@ describe("result-only entry", () => {
     expect(manualOutcome(NFHS_2025_26, { winner: "A", winType: "DEC" })).toMatchObject({ ok: false, message: "Enter the final score." });
     expect(manualOutcome(NFHS_2025_26, { winner: "A", winType: "VPO" })).toMatchObject({ ok: false });
     expect(manualOutcome(UWW_GRECO_2025, { winner: "A", winType: "VPO", score: { A: 3, B: 1 } })).toMatchObject({ ok: false });
+  });
+});
+
+describe("position (folkstyle)", () => {
+  const codes = (st: ReturnType<typeof boutState>, c: Corner) => allowedActions(NFHS_2025_26, st, c).map((a) => a.code);
+
+  it("starts neutral: only takedowns", () => {
+    const st = boutState(NFHS_2025_26, []);
+    expect(st.position).toBe("neutral");
+    expect(codes(st, "A")).toEqual(["T3"]);
+    expect(codes(st, "B")).toEqual(["T3"]);
+  });
+
+  it("a takedown puts the scorer on top; no second takedown until an escape", () => {
+    const st = boutState(NFHS_2025_26, [s("B", "T3")]);
+    expect(st.position).toBe("B-top");
+    expect(codes(st, "B")).toEqual(["N2", "N3", "N4", "N5"]);
+    expect(codes(st, "A")).toEqual(["E1", "R2"]);
+    const escaped = boutState(NFHS_2025_26, [s("B", "T3"), s("A", "E1")]);
+    expect(escaped.position).toBe("neutral");
+    expect(codes(escaped, "B")).toContain("T3");
+  });
+
+  it("a reversal flips who's on top; near falls keep the top wrestler on top", () => {
+    expect(boutState(NFHS_2025_26, [s("A", "T3"), s("A", "N2"), s("B", "R2")]).position).toBe("B-top");
+  });
+
+  it("flags scores entered from the wrong position, but still counts them", () => {
+    const events = [s("B", "T3"), s("B", "T3")];
+    const st = boutState(NFHS_2025_26, events);
+    expect(st.outOfPosition).toEqual([events[1]!.id]);
+    expect(st.score.B).toBe(6);
+  });
+
+  it("period-start choices and corrections set the position; undo rewinds it", () => {
+    expect(positionFromChoice("A", "bottom")).toBe("B-top");
+    expect(positionFromChoice("B", "top")).toBe("B-top");
+    expect(positionFromChoice("A", "neutral")).toBe("neutral");
+    expect(positionFromChoice("A", "defer")).toBeNull();
+    const choice: BoutEvent = { id: "c2", type: "position", position: "A-top", chooser: "B", choice: "bottom", period: 2 };
+    const st = boutState(NFHS_2025_26, [s("A", "T3"), s("B", "E1"), choice]);
+    expect(st.position).toBe("A-top");
+    expect(st.positionPeriods).toEqual([2]);
+    const td = s("A", "T3");
+    expect(boutState(NFHS_2025_26, [td, voidOf(td)]).position).toBe("neutral");
+  });
+
+  it("freestyle doesn't track position: every button, always", () => {
+    const st = boutState(UWW_FREESTYLE_2025, [s("A", "T2")]);
+    expect(allowedActions(UWW_FREESTYLE_2025, st, "A")).toHaveLength(UWW_FREESTYLE_2025.actions.length);
   });
 });

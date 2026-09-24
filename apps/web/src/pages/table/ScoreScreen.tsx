@@ -1,4 +1,18 @@
-import { type BoutEnding, type BoutEvent, type Corner, type Ruleset, boutState, clock as fmtClock, finalizeBout } from "@openmat/core";
+import {
+  type BoutEnding,
+  type BoutEvent,
+  type BoutPosition,
+  type BoutState,
+  type Corner,
+  type PeriodChoice,
+  type Ruleset,
+  allowedActions,
+  boutState,
+  clock as fmtClock,
+  finalizeBout,
+  positionFromChoice,
+  positionOf,
+} from "@openmat/core";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { type Bout, type Wrestler, api } from "../../api";
@@ -54,6 +68,43 @@ function Scoring({ slug, detail, ruleset, mat, onDone }: { slug: string; detail:
     const item = enqueue(slug, bout.id, { ...e, period: clock.period, matchTimeSec: clock.matchTimeSec });
     setLocal((l) => [...l, item.event as unknown as BoutEvent]);
   };
+  // Position (folkstyle): periods 2+ start with a choice; the first overtime period starts neutral.
+  const tracks = !!ruleset.tracksPosition;
+  const firstOvertime = clock.period === detail.periodsSec.length + 1;
+  const needsChoice = tracks && clock.period >= 2 && !firstOvertime && !state.positionPeriods.includes(clock.period);
+  useEffect(() => {
+    if (tracks && firstOvertime && !state.positionPeriods.includes(clock.period)) {
+      add({ type: "position", position: "neutral", reason: "Sudden victory starts neutral" });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tracks, firstOvertime, clock.period]);
+  // Who chose last time, to suggest the other wrestler this time.
+  const lastChooser = [...events]
+    .reverse()
+    .find((e): e is Extract<BoutEvent, { type: "position" }> => e.type === "position" && !!e.chooser && !voidedIds(events).has(e.id))?.chooser;
+
+  // Tech fall: stop the clock and ask, once per score.
+  const scoreSig = `${state.score.A}-${state.score.B}`;
+  const techFallNow = Math.abs(state.score.A - state.score.B) >= ruleset.techFallMargin;
+  const [techFallDismissed, setTechFallDismissed] = useState<string | null>(null);
+  const askTechFall = techFallNow && techFallDismissed !== scoreSig && !finishing;
+  useEffect(() => {
+    if (techFallNow && techFallDismissed !== scoreSig) clock.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [techFallNow, scoreSig]);
+  const [finishWith, setFinishWith] = useState<BoutEnding>({ type: "time" });
+
+  // Share the match clock with live views (mat board) when it starts, stops, changes period or is corrected.
+  const stoppedAt = clock.running ? -1 : Math.round(clock.remaining);
+  useEffect(() => {
+    void api(`/events/${slug}/bouts/${bout.id}/clock`, {
+      method: "POST",
+      slug,
+      body: { period: clock.period, remainingSec: Math.round(clock.remaining), running: clock.running },
+    }).catch(() => undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clock.running, clock.period, stoppedAt]);
+
   const riding = useRidingClock(bout.id, clock.running);
   const tracksRiding = !!ruleset.ridingTimePointSec;
   // Record the net riding advantage when the rider changes or the clock stops.
@@ -68,6 +119,11 @@ function Scoring({ slug, detail, ruleset, mat, onDone }: { slug: string; detail:
   };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(saveRiding, [clock.running, riding.rider]);
+  // The wrestler on top is riding.
+  useEffect(() => {
+    if (tracksRiding && tracks) riding.setRider(state.position === "neutral" ? null : (state.position[0] as Corner));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.position]);
   const voided = new Set(events.filter((e) => e.type === "void").map((e) => (e as { target: string }).target));
   const lastActive = [...events].reverse().find((e) => e.type !== "void" && !voided.has(e.id));
 
@@ -79,11 +135,15 @@ function Scoring({ slug, detail, ruleset, mat, onDone }: { slug: string; detail:
           <div className="text-xs font-bold tracking-wider uppercase opacity-80">{ruleset.cornerColors[c]}</div>
           <div className="truncate text-xl font-bold">{w ? `${w.firstName} ${w.lastName}` : "?"}</div>
           <div className="truncate text-sm opacity-80">{w?.team}</div>
-          <div className="mt-1 text-6xl font-black tabular-nums">{state.score[c]}</div>
+          <div className="mt-1 flex items-end justify-between gap-2">
+            <span className="text-6xl font-black tabular-nums">{state.score[c]}</span>
+            {tracks && <span className="rounded-full bg-white/20 px-2.5 py-1 text-sm font-bold">{POSITION_LABEL[positionOf(state.position, c)]}</span>}
+          </div>
           {state.cautions[c] > 0 && <div className="text-sm">Cautions: {state.cautions[c]}</div>}
         </div>
         <div className="grid grid-cols-2 gap-2">
-          {ruleset.actions.map((a) => (
+          {needsChoice && <p className="col-span-2 rounded-xl bg-white p-3 text-sm text-slate-500 ring-1 ring-slate-200">Record the period choice above to score.</p>}
+          {!needsChoice && allowedActions(ruleset, state, c).map((a) => (
             <button
               key={a.code}
               type="button"
@@ -190,10 +250,20 @@ function Scoring({ slug, detail, ruleset, mat, onDone }: { slug: string; detail:
           </div>
         )}
 
-        {state.techFall && (
-          <Notice tone="amber">
-            {who(state.techFall.winner)?.firstName} leads by {ruleset.techFallMargin}+: technical fall. (High school: finish the near-fall first.)
-          </Notice>
+        {tracks && (
+          <PositionPanel
+            ruleset={ruleset}
+            state={state}
+            period={clock.period}
+            overtime={clock.overtime}
+            needsChoice={needsChoice}
+            suggested={lastChooser ? (lastChooser === "A" ? "B" : "A") : undefined}
+            names={{ A: who("A")?.firstName ?? "Red", B: who("B")?.firstName ?? "Green" }}
+            onSet={(e) => add(e)}
+          />
+        )}
+        {state.outOfPosition.length > 0 && (
+          <Notice tone="amber">Some scores don't fit the position (marked ⚠ below), for example two takedowns in a row. Undo or fix them if they were mistakes.</Notice>
         )}
         {(state.disqualified || state.cautionedOut) && <Notice tone="red">{who((state.disqualified ?? state.cautionedOut)!)?.firstName} is disqualified by penalties. Finish the bout.</Notice>}
         {state.warnings.length > 0 && (
@@ -213,6 +283,7 @@ function Scoring({ slug, detail, ruleset, mat, onDone }: { slug: string; detail:
             size="lg"
             onClick={() => {
               saveRiding();
+              setFinishWith(techFallNow ? { type: "tech-fall" } : { type: "time" });
               setFinishing(true);
             }}
           >
@@ -220,8 +291,39 @@ function Scoring({ slug, detail, ruleset, mat, onDone }: { slug: string; detail:
           </Button>
         </div>
 
-        <ScoreLog events={events} ruleset={ruleset} names={{ A: who("A")?.firstName ?? "A", B: who("B")?.firstName ?? "B" }} voided={voided} />
+        <ScoreLog events={events} ruleset={ruleset} names={{ A: who("A")?.firstName ?? "A", B: who("B")?.firstName ?? "B" }} voided={voided} outOfPosition={new Set(state.outOfPosition)} />
       </div>
+
+      {askTechFall && (
+        <Dialog open onClose={() => setTechFallDismissed(scoreSig)} title="Technical fall">
+          <div className="space-y-4">
+            <p className="text-lg">
+              <strong>{who(state.score.A > state.score.B ? "A" : "B")?.firstName}</strong> leads {Math.max(state.score.A, state.score.B)}–
+              {Math.min(state.score.A, state.score.B)}, a {Math.abs(state.score.A - state.score.B)}-point lead. The clock is stopped.
+            </p>
+            {tracks && (
+              <p className="text-sm text-slate-600">
+                If the lead came from a takedown or reversal straight into a near fall, keep wrestling until the near fall ends, then finish.
+              </p>
+            )}
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button variant="secondary" onClick={() => setTechFallDismissed(scoreSig)}>
+                Keep wrestling
+              </Button>
+              <Button
+                onClick={() => {
+                  saveRiding();
+                  setFinishWith({ type: "tech-fall" });
+                  setTechFallDismissed(scoreSig);
+                  setFinishing(true);
+                }}
+              >
+                End match: tech fall
+              </Button>
+            </div>
+          </div>
+        </Dialog>
+      )}
 
       {finishing && (
         <FinishDialog
@@ -230,6 +332,7 @@ function Scoring({ slug, detail, ruleset, mat, onDone }: { slug: string; detail:
           ruleset={ruleset}
           events={events}
           pending={pending.length}
+          initialEnding={finishWith}
           matchTimeSec={clock.matchTimeSec}
           names={{ A: who("A")?.firstName ?? "Red", B: who("B")?.firstName ?? "Green" }}
           onClose={() => setFinishing(false)}
@@ -243,7 +346,19 @@ function Scoring({ slug, detail, ruleset, mat, onDone }: { slug: string; detail:
   );
 }
 
-function ScoreLog({ events, ruleset, names, voided }: { events: BoutEvent[]; ruleset: Ruleset; names: Record<Corner, string>; voided: Set<string> }) {
+function ScoreLog({
+  events,
+  ruleset,
+  names,
+  voided,
+  outOfPosition,
+}: {
+  events: BoutEvent[];
+  ruleset: Ruleset;
+  names: Record<Corner, string>;
+  voided: Set<string>;
+  outOfPosition: Set<string>;
+}) {
   const rows = events.filter((e) => e.type !== "void").reverse();
   if (!rows.length) return <p className="text-center text-sm text-slate-400">Tap a button to score. Every tap is saved.</p>;
   return (
@@ -256,10 +371,17 @@ function ScoreLog({ events, ruleset, names, voided }: { events: BoutEvent[]; rul
               ? `${names[e.corner]}: ${e.kind}${e.points ? ` (${e.points})` : ""}`
               : e.type === "riding-time"
                 ? `Riding time: ${names[e.corner]} ${e.seconds}s`
-                : "";
+                : e.type === "position"
+                  ? e.chooser && e.choice
+                    ? `${names[e.chooser]} chose ${e.choice}`
+                    : `Position: ${e.position === "neutral" ? "neutral" : `${names[e.position[0] as Corner]} on top`}`
+                  : "";
         return (
           <li key={e.id} className={cx("flex justify-between gap-3 px-4 py-2", voided.has(e.id) && "text-slate-400 line-through")}>
-            <span>{label}</span>
+            <span>
+              {outOfPosition.has(e.id) && !voided.has(e.id) && <span title="Doesn't fit the position">⚠ </span>}
+              {label}
+            </span>
             <span className="text-slate-400 tabular-nums">
               P{e.period ?? "?"} {e.matchTimeSec !== undefined ? fmtClock(e.matchTimeSec) : ""}
             </span>
@@ -276,6 +398,7 @@ function FinishDialog({
   ruleset,
   events,
   pending,
+  initialEnding,
   matchTimeSec,
   names,
   onClose,
@@ -286,12 +409,13 @@ function FinishDialog({
   ruleset: Ruleset;
   events: BoutEvent[];
   pending: number;
+  initialEnding: BoutEnding;
   matchTimeSec: number;
   names: Record<Corner, string>;
   onClose: () => void;
   onFinished: () => void;
 }) {
-  const [ending, setEnding] = useState<BoutEnding>({ type: "time" });
+  const [ending, setEnding] = useState<BoutEnding>(initialEnding);
   const preview = finalizeBout(ruleset, events, ending);
   const save = useEventMutation(slug, async () => {
     if (!(await flush(slug))) throw new Error("Can't reach the server to save. Your scoring is safe on this device; try again when you're back online.");
@@ -345,5 +469,120 @@ function FinishDialog({
         </div>
       </div>
     </Dialog>
+  );
+}
+
+const POSITION_LABEL = { neutral: "Neutral", top: "On top", bottom: "Bottom" } as const;
+
+function voidedIds(events: BoutEvent[]): Set<string> {
+  return new Set(events.filter((e) => e.type === "void").map((e) => (e as { target: string }).target));
+}
+
+/**
+ * Folkstyle position: shows neutral / who's on top, records the choice at
+ * the start of a period (with defer), and lets the table correct it.
+ */
+function PositionPanel({
+  ruleset,
+  state,
+  period,
+  overtime,
+  needsChoice,
+  suggested,
+  names,
+  onSet,
+}: {
+  ruleset: Ruleset;
+  state: BoutState;
+  period: number;
+  overtime: boolean;
+  needsChoice: boolean;
+  suggested?: Corner;
+  names: Record<Corner, string>;
+  onSet: (e: Record<string, unknown>) => void;
+}) {
+  const [chooser, setChooser] = useState<Corner | null>(null);
+  const [deferred, setDeferred] = useState<Corner | null>(null);
+  useEffect(() => {
+    setChooser(null);
+    setDeferred(null);
+  }, [period]);
+  const color = (c: Corner) => cap(ruleset.cornerColors[c]);
+  const choose = (c: Corner, choice: PeriodChoice) => {
+    if (choice === "defer") {
+      setDeferred(c);
+      setChooser(c === "A" ? "B" : "A");
+      return;
+    }
+    onSet({ type: "position", position: positionFromChoice(c, choice), chooser: c, choice });
+  };
+  const options: BoutPosition[] = ["A-top", "neutral", "B-top"];
+  const optionLabel = (p: BoutPosition) => (p === "neutral" ? "Neutral" : `${color(p[0] as Corner)} on top`);
+
+  if (needsChoice) {
+    return (
+      <div className="rounded-2xl bg-amber-50 p-4 ring-2 ring-amber-300">
+        <div className="text-xs font-bold tracking-wide text-amber-900 uppercase">{overtime ? "Tiebreaker" : `Start of period ${period}`}: choice of position</div>
+        {!chooser ? (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold">Who chooses?</span>
+            {(["A", "B"] as Corner[]).map((c) => (
+              <Button key={c} variant={suggested === c ? "primary" : "secondary"} onClick={() => setChooser(c)}>
+                {names[c]} ({color(c)})
+                {suggested === c ? " · their turn" : ""}
+              </Button>
+            ))}
+            <button type="button" className="ml-auto text-sm font-semibold text-slate-500" onClick={() => onSet({ type: "position", position: "neutral", reason: "Period started neutral" })}>
+              Skip: start neutral
+            </button>
+          </div>
+        ) : (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold">
+              {deferred ? `${names[deferred]} deferred. ` : ""}
+              {names[chooser]} chooses:
+            </span>
+            {(["top", "bottom", "neutral", ...(deferred ? [] : ["defer"])] as PeriodChoice[]).map((choice) => (
+              <Button key={choice} variant="secondary" onClick={() => choose(chooser, choice)}>
+                {cap(choice)}
+              </Button>
+            ))}
+            <button type="button" className="ml-auto text-sm font-semibold text-slate-500" onClick={() => (setChooser(null), setDeferred(null))}>
+              Back
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
+      <div>
+        <div className="text-xs font-bold text-slate-500 uppercase">Position</div>
+        <div className="text-lg font-bold">{optionLabel(state.position)}</div>
+      </div>
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Set position">
+        {options.map((p) => (
+          <button
+            key={p}
+            type="button"
+            aria-pressed={state.position === p}
+            onClick={() => state.position !== p && onSet({ type: "position", position: p, reason: "Set by table" })}
+            className={cx(
+              "rounded-lg px-3 py-2 text-sm font-bold ring-2",
+              state.position === p
+                ? p === "A-top"
+                  ? "bg-red-600 text-white ring-red-600"
+                  : p === "B-top"
+                    ? "bg-emerald-600 text-white ring-emerald-600"
+                    : "bg-slate-700 text-white ring-slate-700"
+                : "ring-slate-200",
+            )}
+          >
+            {optionLabel(p)}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }

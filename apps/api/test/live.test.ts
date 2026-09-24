@@ -20,6 +20,7 @@ const bout = (id: string, order: number, extra: Partial<BoutView> = {}): BoutVie
   after: [],
   startedAt: null,
   endedAt: null,
+  clock: null,
   winnerEntryId: null,
   result: null,
   ...extra,

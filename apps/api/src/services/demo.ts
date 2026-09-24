@@ -57,7 +57,8 @@ const tap = (e: object) => ({ id: `demo-${Date.now().toString(36)}-${++tapId}`, 
 async function scoreLive(slug: string, boutId: string, token: string, finish: boolean) {
   const events = [];
   let t = 10;
-  const plan: [Corner, string][] = [["A", "T3"], ["B", "E1"], ["A", "N2"], ["B", "R2"], ["A", "E1"], ["A", "T3"]];
+  // A valid folkstyle sequence: takedown, escape, takedown, near fall, reversal, escape.
+  const plan: [Corner, string][] = [["A", "T3"], ["B", "E1"], ["A", "T3"], ["A", "N2"], ["B", "R2"], ["A", "E1"]];
   for (const [corner, action] of plan.slice(0, finish ? plan.length : 3)) {
     t += 15 + Math.floor(rand() * 30);
     events.push(tap({ type: "score", corner, action, period: t < 120 ? 1 : t < 240 ? 2 : 3, matchTimeSec: t }));

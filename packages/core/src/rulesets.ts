@@ -18,7 +18,17 @@ export interface ScoringAction {
    * lost challenge). Matters for UWW tie criteria.
    */
   technical: boolean;
+  /**
+   * Position rules (folkstyle): the scorer's position(s) this can be scored
+   * from, and the scorer's position after. Omitted = allowed any time, no
+   * change.
+   */
+  from?: WrestlerPosition[];
+  to?: WrestlerPosition;
 }
+
+/** One wrestler's position: both standing, or on top / underneath. */
+export type WrestlerPosition = "neutral" | "top" | "bottom";
 
 export interface PenaltyProgression {
   kind: string;
@@ -73,6 +83,8 @@ export interface Ruleset {
   ridingTimePointSec?: number;
   /** UWW: this many cautions loses the bout. */
   cautionsToLose?: number;
+  /** Folkstyle: track neutral/top/bottom and only allow actions from the right position. */
+  tracksPosition?: boolean;
   /** Ties at the end of regulation go to overtime (folkstyle) or tie criteria (UWW). */
   tieBreak: "overtime" | "uww-criteria";
   overtime?: string;
@@ -91,13 +103,13 @@ export interface Ruleset {
 }
 
 const folkstyleActions: ScoringAction[] = [
-  { code: "T3", label: "Takedown", points: 3, technical: true },
-  { code: "E1", label: "Escape", points: 1, technical: true },
-  { code: "R2", label: "Reversal", points: 2, technical: true },
-  { code: "N2", label: "Near fall (2 sec)", points: 2, technical: true },
-  { code: "N3", label: "Near fall (3 sec)", points: 3, technical: true },
-  { code: "N4", label: "Near fall (4 sec)", points: 4, technical: true },
-  { code: "N5", label: "Near fall + injury/blood", points: 5, technical: true },
+  { code: "T3", label: "Takedown", points: 3, technical: true, from: ["neutral"], to: "top" },
+  { code: "E1", label: "Escape", points: 1, technical: true, from: ["bottom"], to: "neutral" },
+  { code: "R2", label: "Reversal", points: 2, technical: true, from: ["bottom"], to: "top" },
+  { code: "N2", label: "Near fall (2 sec)", points: 2, technical: true, from: ["top"], to: "top" },
+  { code: "N3", label: "Near fall (3 sec)", points: 3, technical: true, from: ["top"], to: "top" },
+  { code: "N4", label: "Near fall (4 sec)", points: 4, technical: true, from: ["top"], to: "top" },
+  { code: "N5", label: "Near fall + injury/blood", points: 5, technical: true, from: ["top"], to: "top" },
 ];
 
 const folkstyleTeamPoints: Ruleset["teamPoints"] = {
@@ -152,6 +164,7 @@ export const NFHS_2025_26: Ruleset = {
   ],
   techFallMargin: 15,
   majorDecisionMargin: 8,
+  tracksPosition: true,
   tieBreak: "overtime",
   overtime:
     "1-minute sudden victory from neutral; if still tied, two 30-second tiebreakers (each wrestler chooses once); then a 30-second ultimate tiebreaker.",
@@ -199,6 +212,7 @@ export const NCAA_2025_27: Ruleset = {
   techFallMargin: 15,
   majorDecisionMargin: 8,
   ridingTimePointSec: 60,
+  tracksPosition: true,
   tieBreak: "overtime",
   overtime:
     "2-minute sudden victory from neutral; then two 30-second tiebreakers (riding time kept). Further rounds: 1-minute sudden victory and two 30-second tiebreakers.",

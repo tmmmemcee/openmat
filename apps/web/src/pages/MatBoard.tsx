@@ -2,6 +2,7 @@ import { useQueries } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { type MatQueue, type QueueItem, api } from "../api";
+import { LiveClock } from "../components/LiveClock";
 import { QrCode } from "../components/QrCode";
 import { useEvent } from "../lib/hooks";
 import { ErrorBox, Header, Input, Page, Spinner, cx } from "../ui";
@@ -20,7 +21,7 @@ export default function MatBoard() {
     queries: Array.from({ length: mats }, (_, i) => ({
       queryKey: ["mat", slug, i + 1],
       queryFn: () => api<MatQueue>(`/events/${slug}/mats/${i + 1}`),
-      refetchInterval: 5_000,
+      refetchInterval: 3_000,
     })),
   });
 
@@ -31,7 +32,7 @@ export default function MatBoard() {
   const board = (
     <div className={cx("grid gap-4", tv ? "grid-cols-2 xl:grid-cols-4" : "sm:grid-cols-2 lg:grid-cols-3")}>
       {results.map((r, i) => (
-        <MatColumn key={i} mat={i + 1} data={r.data} tv={tv} query={q} />
+        <MatColumn key={i} mat={i + 1} data={r.data} tv={tv} query={q} periods={Math.max(0, ...event.data.divisions.map((d) => d.periodsSec.length))} />
       ))}
     </div>
   );
@@ -79,7 +80,7 @@ export default function MatBoard() {
   );
 }
 
-function MatColumn({ mat, data, tv, query }: { mat: number; data?: MatQueue; tv: boolean; query: string }) {
+function MatColumn({ mat, data, tv, query, periods }: { mat: number; data?: MatQueue; tv: boolean; query: string; periods: number }) {
   const names = new Map((data?.wrestlers ?? []).map((w) => [w.id, w]));
   const items = (data?.queue ?? []).slice(0, tv ? 3 : 5);
   const who = (id: string | null, from?: string) => {
@@ -112,17 +113,33 @@ function MatColumn({ mat, data, tv, query }: { mat: number; data?: MatQueue; tv:
                     {label[q.position]}
                   </span>
                   <span className={cx(tv ? "text-base text-slate-300" : "text-xs text-slate-500")}>
+                    {q.live?.clock && data && (
+                      <span className={cx("mr-2 font-bold", tv ? "text-white" : "text-slate-900")}>
+                        <LiveClock clock={q.live.clock} serverNow={data.serverNow} periods={periods} />
+                      </span>
+                    )}
                     #{q.bout.boutNumber}
                     {q.position !== "wrestling" && q.estimatedStart ? ` · ~${time(q.estimatedStart)}` : ""}
                   </span>
                 </div>
-                {[a, b].map((p, i) => (
-                  <div key={i} className={cx("mt-1 flex items-baseline gap-2", tv ? "text-xl" : "text-sm")}>
-                    <span className={cx("h-3 w-1 shrink-0 self-center rounded-full", i === 0 ? "bg-red-500" : "bg-emerald-500")} />
-                    <span className={cx("truncate font-semibold", p.hit && "underline")}>{p.name}</span>
-                    <span className={cx("truncate", tv ? "text-base text-slate-400" : "text-xs text-slate-500")}>{p.team}</span>
-                  </div>
-                ))}
+                {[a, b].map((p, i) => {
+                  const corner = i === 0 ? "A" : "B";
+                  const onTop = q.live?.position === `${corner}-top`;
+                  return (
+                    <div key={i} className={cx("mt-1 flex items-baseline gap-2", tv ? "text-xl" : "text-sm")}>
+                      <span className={cx("h-3 w-1 shrink-0 self-center rounded-full", i === 0 ? "bg-red-500" : "bg-emerald-500")} />
+                      <span className={cx("truncate font-semibold", p.hit && "underline")}>{p.name}</span>
+                      <span className={cx("min-w-0 flex-1 truncate", tv ? "text-base text-slate-400" : "text-xs text-slate-500")}>{p.team}</span>
+                      {onTop && (
+                        <span className={cx("shrink-0 rounded px-1.5 text-[10px] font-bold uppercase", tv ? "bg-slate-600 text-white" : "bg-slate-200 text-slate-700")} title="On top">
+                          Top
+                        </span>
+                      )}
+                      {q.live && <span className={cx("shrink-0 font-black tabular-nums", tv ? "text-2xl" : "text-base")}>{q.live.score[corner]}</span>}
+                    </div>
+                  );
+                })}
+                {q.live?.position === "neutral" && <div className={cx("mt-0.5 text-[11px]", tv ? "text-slate-400" : "text-slate-500")}>Neutral</div>}
                 <div className={cx("mt-1 truncate", tv ? "text-sm text-slate-400" : "text-xs text-slate-400")}>{q.bracketName}</div>
               </li>
             );
