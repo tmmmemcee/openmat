@@ -3,8 +3,12 @@
   "private": true,
   "license": "MIT",
   "scripts": {
+    "dev": "pnpm --parallel --filter @openmat/api --filter @openmat/web dev",
+    "db:up": "docker compose up -d",
+    "db:migrate": "pnpm --filter @openmat/api db:migrate",
     "test": "pnpm -r test",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "build": "pnpm --filter @openmat/web build"
   },
   "packageManager": "pnpm@10.32.1",
   "devDependencies": {

@@ -4,9 +4,9 @@ Free, open-source software for running wrestling tournaments: registration, weig
 
 Built so a tournament director, not a programmer, can run it.
 
-**Status:** early. Core tournament logic only, no app yet. See [PLAN.md](PLAN.md).
+**Status:** early. The core logic is done. The web app covers event setup, registration, weigh-ins and youth grouping; brackets, table scoring and the live mat board are next. See [PLAN.md](PLAN.md).
 
-## Packages
+## Core logic
 
 - `packages/core`: pure TypeScript logic, no UI or database.
   - Age divisions (8U/10U/12U/14U by birth year)
@@ -17,15 +17,26 @@ Built so a tournament director, not a programmer, can run it.
   - Mat scheduler with rest between matches, bout numbers, and live on deck / in the hole estimates
   - Rulesets (high school, USAW kids, college, freestyle, Greco-Roman) and live bout scoring with full correction history
 
+## Packages and apps
+
+- `apps/api`: Fastify + Postgres (Drizzle) API. Staff sign in with secret links (director, weigh-in, one per mat), no accounts.
+- `apps/web`: React + Vite web app (setup wizard, director dashboard, weigh-in station, public event page).
+
 ## Development
 
-Requires Node 24+ and pnpm.
+Requires Node 24+, pnpm and Docker.
 
 ```sh
 pnpm install
-pnpm test
+pnpm db:up        # Postgres in Docker on port 5433
+pnpm db:migrate
+pnpm dev          # API on :3001, web on http://localhost:5173
+pnpm test         # core + API tests (API tests use the openmat_test database)
 pnpm typecheck
 ```
+
+First time only, create the test database:
+`docker exec openmat-db psql -U openmat -c "create database openmat_test"`
 
 ## License
 

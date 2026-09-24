@@ -1,0 +1,75 @@
+import { NavLink, useParams } from "react-router";
+import { useEvent } from "../../lib/hooks";
+import { formatDate } from "../../lib/format";
+import { ErrorBox, Header, Notice, Page, Spinner, cx } from "../../ui";
+import Groups from "./Groups";
+import Overview from "./Overview";
+import Wrestlers from "./Wrestlers";
+
+export default function Manage() {
+  const { slug = "", tab = "overview" } = useParams();
+  const event = useEvent(slug);
+
+  if (event.isLoading) return <Spinner />;
+  if (event.error || !event.data) {
+    return (
+      <Page>
+        <ErrorBox error={event.error} />
+      </Page>
+    );
+  }
+  const ev = event.data;
+  if (ev.access?.role !== "director") {
+    return (
+      <>
+        <Header title={ev.name} />
+        <Page className="max-w-xl">
+          <Notice tone="amber">
+            This page is for the tournament director. Open the director link you saved when the tournament was created, on this device.
+          </Notice>
+        </Page>
+      </>
+    );
+  }
+
+  const tabs = [
+    ["overview", "Overview"],
+    ["wrestlers", "Wrestlers"],
+    ...(ev.format === "madison" ? [["groups", "Groups"]] : []),
+  ] as [string, string][];
+
+  return (
+    <>
+      <Header
+        title={ev.name}
+        subtitle={[formatDate(ev.startDate), ev.location].filter(Boolean).join(" · ")}
+        right={
+          <a href={`/e/${slug}`} target="_blank" rel="noreferrer" className="text-sm font-semibold text-amber-300 hover:underline">
+            Public page ↗
+          </a>
+        }
+      />
+      <nav className="sticky top-0 z-10 border-b border-slate-200 bg-white" style={{ top: "env(safe-area-inset-top, 0px)" }}>
+        <div className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4">
+          {tabs.map(([key, label]) => (
+            <NavLink
+              key={key}
+              to={`/e/${slug}/manage/${key}`}
+              className={cx(
+                "border-b-2 px-3 py-3 text-sm font-semibold whitespace-nowrap",
+                tab === key ? "border-brand-700 text-brand-800" : "border-transparent text-slate-600 hover:text-slate-900",
+              )}
+            >
+              {label}
+            </NavLink>
+          ))}
+        </div>
+      </nav>
+      <Page>
+        {tab === "overview" && <Overview event={ev} />}
+        {tab === "wrestlers" && <Wrestlers event={ev} />}
+        {tab === "groups" && ev.format === "madison" && <Groups event={ev} />}
+      </Page>
+    </>
+  );
+}

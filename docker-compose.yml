@@ -1,0 +1,16 @@
+# Development database. `docker compose up -d` then `pnpm --filter @openmat/api db:migrate`.
+services:
+  db:
+    image: postgres:17
+    container_name: openmat-db
+    environment:
+      POSTGRES_USER: openmat
+      POSTGRES_PASSWORD: openmat
+      POSTGRES_DB: openmat
+    ports:
+      - "5433:5432"
+    volumes:
+      - openmat-db:/var/lib/postgresql/data
+    restart: unless-stopped
+volumes:
+  openmat-db:

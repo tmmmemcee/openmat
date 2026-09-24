@@ -312,4 +312,8 @@ Each feature lists **what it does**, **how we build it**, and **open questions**
 - [x] Rulesets as data (NFHS 2025-26, USAW kids folkstyle, NCAA 2025-27, UWW freestyle and Greco-Roman) with rule-book links, fan summaries, and a `toVerify` list per ruleset
 - [x] Bout scoring as an append-only event log: voids for undo/corrections, penalty progressions (incl. shared counts and DQ), UWW cautions, NCAA riding time, tech fall detection, finalizing to win type + team/classification points + score-sheet text, UWW tie criteria
 - [ ] Get an official to review the `toVerify` items
-- [ ] Web app (event wizard, registration, weigh-in, grouping UI, table app, mat board, follows)
+- [x] API (Fastify + Postgres/Drizzle): events, secret staff links (director / weigh-in / per-mat table), registration, CSV import, weigh-in checks, wrestle-up bumps, auto-grouping with locked groups, manual moves (never down)
+- [x] Web app, part 1: setup wizard, director dashboard (overview, wrestlers, groups with drag and drop), weigh-in station, public event page with self-registration
+- [ ] Web app, part 2: brackets and schedule, table scoring app, live mat board, follows and notifications
+- [ ] Hosting and deploy (public site)
+- [ ] Rate limiting / abuse protection on public registration
