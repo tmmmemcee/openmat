@@ -2,6 +2,8 @@
  * Round robin pools: everyone in a group wrestles everyone else once.
  */
 
+import type { WinType } from "./rulesets.js";
+
 export interface PoolBout {
   /** 1-based round number. Each wrestler has at most one bout per round. */
   round: number;
@@ -59,15 +61,6 @@ function rested(pair: [string, string], justWrestled: Set<string>): number {
 // Standings
 // ---------------------------------------------------------------------------
 
-export type WinType =
-  | "DEC" // decision
-  | "MD" // major decision
-  | "TF" // technical fall
-  | "FALL" // pin
-  | "FOR" // forfeit
-  | "INJ" // injury default
-  | "DQ" // disqualification
-  | "MFF"; // medical forfeit
 
 export interface BoutResult {
   wrestler1: string;
@@ -108,7 +101,7 @@ export function poolStandings(wrestlerIds: string[], results: BoutResult[]): Sta
     if (!w || !l) throw new Error(`Result references a wrestler not in the pool: ${r.wrestler1} vs ${r.wrestler2}`);
     w.wins++;
     l.losses++;
-    if (r.winType === "FALL") {
+    if (r.winType === "FALL" || r.winType === "VFA") {
       w.falls++;
       w.fallTime += r.fallTimeSec ?? 0;
     }

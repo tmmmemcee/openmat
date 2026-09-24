@@ -15,6 +15,7 @@ Built so a tournament director, not a programmer, can run it.
   - Official weight classes (NFHS, USAW kids) and weigh-in checks
   - Single and double elimination brackets (consolation, true second, byes, draws that keep teammates apart)
   - Mat scheduler with rest between matches, bout numbers, and live on deck / in the hole estimates
+  - Rulesets (high school, USAW kids, college, freestyle, Greco-Roman) and live bout scoring with full correction history
 
 ## Development
 

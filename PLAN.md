@@ -309,5 +309,7 @@ Each feature lists **what it does**, **how we build it**, and **open questions**
 - [x] Scheduler: per-mat list scheduling with rest and mat restrictions, bout numbering (101/201 or sequential), pools-to-mats balancing, live ETAs with now / on deck / in the hole and rest-hold flags
 - [ ] UWW repechage, pool-to-bracket crossover, team scoring
 - [ ] Max bouts per wrestler per day check (NFHS: 6)
-- [ ] Rulesets (NFHS, USAW kids folkstyle, UWW) + bout event log scoring
+- [x] Rulesets as data (NFHS 2025-26, USAW kids folkstyle, NCAA 2025-27, UWW freestyle and Greco-Roman) with rule-book links, fan summaries, and a `toVerify` list per ruleset
+- [x] Bout scoring as an append-only event log: voids for undo/corrections, penalty progressions (incl. shared counts and DQ), UWW cautions, NCAA riding time, tech fall detection, finalizing to win type + team/classification points + score-sheet text, UWW tie criteria
+- [ ] Get an official to review the `toVerify` items
 - [ ] Web app (event wizard, registration, weigh-in, grouping UI, table app, mat board, follows)
