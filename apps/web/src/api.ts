@@ -105,6 +105,7 @@ export interface Entry {
   weight: number | null;
   weighedAt: string | null;
   weightClass: string | null;
+  seed: number | null;
   bumpAge: number;
   bumpWeight: number;
   consent: boolean;
@@ -138,4 +139,81 @@ export interface Templates {
   rulesets: { id: string; name: string; style: string; season: string; periodsSec: number[]; minRestMin: number; summary: string }[];
   ageDivisions: { name: string; maxAge: number }[];
   weightClassPresets: { name: string; limits: number[]; maxClassesUp: number }[];
+}
+
+// ---- Brackets, bouts, mats ----
+
+export type BoutStatus = "waiting" | "ready" | "wrestling" | "done" | "bye" | "not-needed";
+
+export interface BoutResult {
+  winner: "A" | "B";
+  winType: string;
+  score: { A: number; B: number };
+  summary: string;
+  teamPoints: number;
+  classificationPoints?: [number, number];
+}
+
+export interface Bout {
+  id: string;
+  bracketId: string;
+  key: string;
+  round: number;
+  label: string;
+  section: "championship" | "consolation" | "placement" | "pool";
+  forPlace?: number;
+  a: string | null;
+  b: string | null;
+  aFrom?: string;
+  bFrom?: string;
+  status: BoutStatus;
+  mat: number | null;
+  matOrder: number | null;
+  boutNumber: string | null;
+  plannedStartMin: number | null;
+  durationMin: number;
+  startedAt: string | null;
+  endedAt: string | null;
+  winnerEntryId: string | null;
+  result: BoutResult | null;
+  conflict?: string;
+}
+
+export interface Bracket {
+  id: string;
+  divisionId: string;
+  groupId: string | null;
+  weightClass: string | null;
+  name: string;
+  format: "round-robin" | "double-elim" | "single-elim";
+  options: { places?: number; trueSecond?: boolean; thirdPlace?: boolean };
+  size: number | null;
+  draw: (string | null)[];
+  bouts: Bout[];
+  places: { place: number; entryId: string; unresolvedTie?: boolean }[];
+}
+
+export interface Wrestler {
+  id: string;
+  firstName: string;
+  lastName: string;
+  team: string;
+  seed?: number | null;
+  weight?: number | null;
+}
+
+export interface QueueItem {
+  bout: Bout;
+  bracketName: string;
+  position: "wrestling" | "on-deck" | "in-the-hole" | "queued";
+  place: number;
+  estimatedStart: string | null;
+  restHoldUntil: string | null;
+}
+
+export interface MatQueue {
+  mat: number;
+  queue: QueueItem[];
+  recent: { bout: Bout; bracketName: string }[];
+  wrestlers: Wrestler[];
 }

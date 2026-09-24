@@ -248,6 +248,7 @@ function EditDialog({ event, entry, onClose }: { event: EventInfo; entry: Entry;
     divisionId: entry.divisionId,
     weightClass: entry.weightClass,
     weight: entry.weight,
+    seed: entry.seed,
     bumpAge: entry.bumpAge,
     bumpWeight: entry.bumpWeight,
     consent: entry.consent,
@@ -327,6 +328,15 @@ function EditDialog({ event, entry, onClose }: { event: EventInfo; entry: Entry;
           </Field>
         </div>
 
+        <Field label="Seed" hint="Optional. Seed within their bracket (1 = best). Blank = drawn randomly.">
+          <Input
+            type="number"
+            min={1}
+            max={64}
+            value={draft.seed ?? ""}
+            onChange={(e) => set({ seed: e.target.value ? Number(e.target.value) : null })}
+          />
+        </Field>
         {youth && (
           <div className="rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200">
             <p className="text-sm font-semibold">Move up</p>

@@ -78,11 +78,23 @@ function statusOf(row: BoutRow, base: BoutStatus): BoutStatus {
   return base;
 }
 
-/** Describe where a slot's wrestler comes from, using bout numbers once scheduled. */
-function sourceText(source: BracketBout["top"], byKey: Map<string, BoutRow>): string | undefined {
+/**
+ * Describe where a slot's wrestler comes from, using bout numbers once
+ * scheduled. Byes have no bout number, so look through them to the real source.
+ */
+function sourceText(
+  source: BracketBout["top"],
+  byKey: Map<string, BoutRow>,
+  resolved: Map<string, { bout: BracketBout; top: string | null; bottom: string | null; status: string }>,
+): string | undefined {
   if (source.kind === "seed") return undefined;
-  const feeder = byKey.get(source.bout);
-  const name = feeder?.boutNumber ? `bout ${feeder.boutNumber}` : source.bout;
+  const feeder = resolved.get(source.bout);
+  if (feeder?.status === "bye" && source.kind === "winner") {
+    const real = feeder.top === BYE ? feeder.bout.bottom : feeder.bout.top;
+    return sourceText(real, byKey, resolved);
+  }
+  const row = byKey.get(source.bout);
+  const name = row?.boutNumber ? `bout ${row.boutNumber}` : source.bout;
   return `${source.kind === "winner" ? "Winner" : "Loser"} of ${name}`;
 }
 
@@ -163,8 +175,8 @@ export function viewBracket(bracket: BracketRow, rows: BoutRow[]): BracketView {
       ...(bout.forPlace ? { forPlace: bout.forPlace } : {}),
       a: rb.top,
       b: rb.bottom,
-      ...(rb.top === null ? { aFrom: sourceText(bout.top, byKey) } : {}),
-      ...(rb.bottom === null ? { bFrom: sourceText(bout.bottom, byKey) } : {}),
+      ...(rb.top === null ? { aFrom: sourceText(bout.top, byKey, byCoreId) } : {}),
+      ...(rb.bottom === null ? { bFrom: sourceText(bout.bottom, byKey, byCoreId) } : {}),
       status: statusOf(row, rb.status === "done" ? "ready" : rb.status),
       ...(rb.conflict ? { conflict: rb.conflict } : {}),
     });

@@ -139,3 +139,16 @@ describe("brackets", () => {
     expect(brackets[0].name).toBe("10U Boys · Group 1");
   });
 });
+
+describe("bracket labels", () => {
+  it("names the real source when a feeder bout is a bye", async () => {
+    const s = await hsSetup(7);
+    await s.call("POST", "/brackets/generate", { format: "double-elim" });
+    await s.call("POST", "/brackets/schedule", {});
+    const b = (await s.call("GET", "/brackets")).json().brackets[0];
+    const labels = b.bouts.flatMap((x: { aFrom?: string; bFrom?: string }) => [x.aFrom, x.bFrom]).filter(Boolean) as string[];
+    // Every source names a numbered bout, never an internal key like "L1-1".
+    expect(labels.length).toBeGreaterThan(0);
+    for (const l of labels) expect(l).toMatch(/of bout \d+$/);
+  });
+});

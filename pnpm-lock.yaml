@@ -57,6 +57,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@openmat/core':
+        specifier: workspace:*
+        version: link:../../packages/core
       '@tanstack/react-query':
         specifier: ^5.103.2
         version: 5.103.2(react@19.3.0)

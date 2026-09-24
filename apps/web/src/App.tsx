@@ -1,5 +1,8 @@
 import { createBrowserRouter } from "react-router";
+import Brackets from "./pages/Brackets";
 import EventPublic from "./pages/EventPublic";
+import MatBoard from "./pages/MatBoard";
+import TableApp from "./pages/table/TableApp";
 import Home from "./pages/Home";
 import Manage from "./pages/manage/Manage";
 import NewEvent from "./pages/NewEvent";
@@ -16,6 +19,9 @@ export const router = createBrowserRouter([
   { path: "/recover", element: <Recover /> },
   { path: "/e/:slug", element: <EventPublic /> },
   { path: "/e/:slug/team", element: <TeamRegister /> },
+  { path: "/e/:slug/brackets", element: <Brackets /> },
+  { path: "/e/:slug/mats", element: <MatBoard /> },
+  { path: "/e/:slug/table/:mat", element: <TableApp /> },
   { path: "/e/:slug/manage/:tab?", element: <Manage /> },
   { path: "/e/:slug/weigh-in", element: <WeighIn /> },
   { path: "*", element: <NotFound /> },

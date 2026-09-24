@@ -111,7 +111,16 @@ export default function EventPublic() {
           </Card>
         )}
 
-        <Notice tone="gray">Brackets, mat assignments and live results will show here on tournament day.</Notice>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Link to={`/e/${slug}/brackets`} className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 hover:ring-brand-600">
+            <div className="font-bold">Brackets & results →</div>
+            <div className="text-sm text-slate-600">Find your wrestler, see their bracket and results.</div>
+          </Link>
+          <Link to={`/e/${slug}/mats`} className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 hover:ring-brand-600">
+            <div className="font-bold">Mats: on deck & in the hole →</div>
+            <div className="text-sm text-slate-600">Who's wrestling now on every mat, and who's next.</div>
+          </Link>
+        </div>
       </Page>
     </>
   );

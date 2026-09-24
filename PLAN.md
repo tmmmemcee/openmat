@@ -317,7 +317,14 @@ Each feature lists **what it does**, **how we build it**, and **open questions**
 - [x] Team roster registration: coaches paste from a spreadsheet / upload CSV / type rows, fix them in a preview grid, register the whole team at once (public, while registration is open; rate-limited, 150 per batch)
 - [x] Public tournament list with filters (search, state, dates, type, registration open); events have venue, city, state, start time and a "listed" switch
 - [x] Lost director link recovery: optional director email, emailed links (SMTP or logged in dev), admin `director-link` command
-- [ ] Web app, part 2: brackets and schedule, table scoring app, live mat board, follows and notifications
+- [x] Brackets: per group / weight class, round robin or double/single elim (places, true second), seeding (per wrestler, redraw one bracket), public bracket pages with wrestler search
+- [x] Mat schedule: rest-aware, bout numbers, groups kept on one mat for youth events, estimated finish
+- [x] Table app (per-mat link): queue with on deck / in the hole and ETAs, live scoring with clock and rules-driven buttons, undo, finish (decision, fall, tech fall, forfeit, injury, DQ), result-only entry, fixes; works offline and syncs later
+- [x] Public mat board (plus ?tv=1 gym TV mode)
+- [ ] Follows and notifications (on deck / in the hole alerts)
+- [ ] Director live console: move bouts between mats, reorder, resolve result conflicts from the UI
+- [ ] Team scores
+- [ ] NCAA riding-time clock on the table screen (engine supports it; UI doesn't yet)
 - [ ] Hosting and deploy (public site)
 - [ ] Stronger abuse protection on public registration (basic per-IP rate limits are in; add CAPTCHA or email confirmation before going public)
 - [ ] Location search by distance ("within 50 miles"): needs geocoding

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { type Entry, type EventInfo, type Group, api } from "../api";
+import { type Bracket, type Entry, type EventInfo, type Group, type MatQueue, type Wrestler, api } from "../api";
 import { captureTokenFromHash } from "../token";
 
 /** Event info for this browser's access level. Picks up a token from the link first. */
@@ -37,6 +37,24 @@ export function useEventMutation<TVars, TResult = unknown>(slug: string, fn: (va
       void qc.invalidateQueries({ queryKey: ["entries", slug] });
       void qc.invalidateQueries({ queryKey: ["groups", slug] });
       void qc.invalidateQueries({ queryKey: ["event", slug] });
+      void qc.invalidateQueries({ queryKey: ["brackets", slug] });
+      void qc.invalidateQueries({ queryKey: ["mat", slug] });
     },
+  });
+}
+
+export function useBrackets(slug: string) {
+  return useQuery({
+    queryKey: ["brackets", slug],
+    queryFn: () => api<{ brackets: Bracket[]; wrestlers: Wrestler[] }>(`/events/${slug}/brackets`, { slug }),
+    refetchInterval: 15_000,
+  });
+}
+
+export function useMatQueue(slug: string, mat: number) {
+  return useQuery({
+    queryKey: ["mat", slug, mat],
+    queryFn: () => api<MatQueue>(`/events/${slug}/mats/${mat}`, { slug }),
+    refetchInterval: 5_000,
   });
 }
