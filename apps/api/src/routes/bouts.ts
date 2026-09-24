@@ -7,6 +7,7 @@ import type { Db } from "../db/client.js";
 import { boutEvents, bouts, entries } from "../db/schema.js";
 import { HttpError } from "../errors.js";
 import { matQueues } from "../services/live.js";
+import type { NotificationScheduler } from "../services/notify.js";
 import { type BoutView, BYE, loadBoutEvents, loadBracketViews, toEngineEvents } from "../services/tournament.js";
 import { loadDivisions, loadEvent } from "./events.js";
 
@@ -68,7 +69,18 @@ function rulesetFor(event: Event) {
 
 const byOf = (access: Access) => (access.role === "table" ? `table:${access.mat}` : access.role);
 
-export function boutRoutes(app: FastifyInstance, db: Db): void {
+export function boutRoutes(app: FastifyInstance, db: Db, scheduler: NotificationScheduler): void {
+  // Anything that changes who's on a mat may make alerts due.
+  // (Queued before the response goes out, so the next request already sees it pending.)
+  app.addHook("onSend", async (req, reply, payload) => {
+    const slug = (req.params as { slug?: string } | undefined)?.slug;
+    if (slug && req.method !== "GET" && reply.statusCode < 400 && req.url.includes("/bouts/")) {
+      const event = await loadEvent(db, slug).catch(() => null);
+      if (event) scheduler.poke(event.id);
+    }
+    return payload;
+  });
+
   /** A mat's queue: wrestling now, on deck, in the hole, then the rest, with estimated start times. */
   app.get<{ Params: { slug: string; mat: string } }>("/api/events/:slug/mats/:mat", async (req) => {
     const event = await loadEvent(db, req.params.slug);

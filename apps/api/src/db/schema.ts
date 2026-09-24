@@ -30,6 +30,8 @@ export const events = pgTable(
     city: text("city").notNull().default(""),
     /** Two-letter state/province code, for the tournament list filters. */
     state: text("state").notNull().default(""),
+    /** IANA time zone of the venue, e.g. "America/Chicago", for times in alerts. */
+    timezone: text("timezone").notNull().default("America/Chicago"),
     /** When wrestling starts, "HH:MM" local time. */
     startTime: text("start_time"),
     /** Shown in the public tournament list. */
@@ -277,4 +279,49 @@ export const boutEvents = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("bout_events_bout_idx").on(t.boutId, t.seq)],
+);
+
+/** Small server-wide settings, e.g. the web push (VAPID) keys. */
+export const serverSettings = pgTable("server_settings", {
+  key: text("key").primaryKey(),
+  value: jsonb("value").$type<unknown>().notNull(),
+});
+
+export interface PushSubscriptionJson {
+  endpoint: string;
+  keys: { p256dh: string; auth: string };
+}
+
+/** Someone following a wrestler or a team, with where to send alerts. No account needed. */
+export const follows = pgTable(
+  "follows",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    eventId: uuid("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    entryId: uuid("entry_id").references(() => entries.id, { onDelete: "cascade" }),
+    /** Follow everyone on this team instead of one wrestler. */
+    team: text("team"),
+    channel: text("channel").$type<"push" | "email">().notNull(),
+    subscription: jsonb("subscription").$type<PushSubscriptionJson>(),
+    email: text("email"),
+    /** Proves the device that created the follow when it unfollows. */
+    secret: text("secret").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("follows_event_idx").on(t.eventId)],
+);
+
+/** Alerts already sent, so each goes out once. */
+export const notificationLog = pgTable(
+  "notification_log",
+  {
+    followId: uuid("follow_id")
+      .notNull()
+      .references(() => follows.id, { onDelete: "cascade" }),
+    key: text("key").notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("notification_log_key_idx").on(t.followId, t.key)],
 );

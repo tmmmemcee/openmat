@@ -28,11 +28,18 @@ export function matQueues(views: BracketView[], mats: number, now = new Date()):
   const queues = new Map<number, BoutView[]>();
   for (let mat = 1; mat <= mats; mat++) {
     const onMat = all.filter((b) => b.mat === mat);
-    // Real bout lengths on this mat, oldest first.
-    const actual = onMat
-      .filter((b) => b.startedAt && b.endedAt)
-      .sort((x, y) => x.endedAt!.getTime() - y.endedAt!.getTime())
-      .map((b) => (b.endedAt!.getTime() - b.startedAt!.getTime()) / 60000);
+    // The mat's real pace: minutes between one bout finishing and the next,
+    // which covers walk-on and handshakes and works even when tables only
+    // enter results. Long gaps (a break, lunch) are ignored.
+    const planned = onMat[0]?.durationMin ?? 6;
+    const ends = onMat
+      .filter((b) => b.endedAt)
+      .map((b) => b.endedAt!.getTime())
+      .sort((x, y) => x - y);
+    const actual = ends
+      .slice(1)
+      .map((t, i) => (t - ends[i]!) / 60000)
+      .filter((gap) => gap >= planned * 0.25 && gap <= planned * 3);
     const current = onMat.find((b) => b.status === "wrestling");
     const queue = onMat
       .filter((b) => b.status === "ready" || b.status === "waiting")

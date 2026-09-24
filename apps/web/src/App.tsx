@@ -1,6 +1,7 @@
 import { createBrowserRouter } from "react-router";
 import Brackets from "./pages/Brackets";
 import EventPublic from "./pages/EventPublic";
+import Follow from "./pages/Follow";
 import MatBoard from "./pages/MatBoard";
 import TableApp from "./pages/table/TableApp";
 import Home from "./pages/Home";
@@ -21,6 +22,7 @@ export const router = createBrowserRouter([
   { path: "/e/:slug/team", element: <TeamRegister /> },
   { path: "/e/:slug/brackets", element: <Brackets /> },
   { path: "/e/:slug/mats", element: <MatBoard /> },
+  { path: "/e/:slug/follow", element: <Follow /> },
   { path: "/e/:slug/table/:mat", element: <TableApp /> },
   { path: "/e/:slug/manage/:tab?", element: <Manage /> },
   { path: "/e/:slug/weigh-in", element: <WeighIn /> },

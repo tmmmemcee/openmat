@@ -36,6 +36,9 @@ export default function Brackets() {
           <Link to={`/e/${slug}/mats`} className="text-brand-700">
             Mat schedule →
           </Link>
+          <Link to={`/e/${slug}/follow`} className="text-brand-700">
+            🔔 My wrestlers
+          </Link>
         </div>
         {brackets.length === 0 ? (
           <Notice tone="gray">Brackets aren't out yet. They're usually posted after weigh-ins.</Notice>

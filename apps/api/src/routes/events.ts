@@ -46,6 +46,11 @@ const createEventInput = z
     name: z.string().trim().min(2).max(120),
     startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date like 2026-12-05"),
     startTime: time.nullish(),
+    timezone: z
+      .string()
+      .max(60)
+      .refine((tz) => Intl.supportedValuesOf("timeZone").includes(tz) || tz === "UTC", "Unknown time zone")
+      .optional(),
     location: z.string().trim().max(200).default(""),
     city: z.string().trim().max(80).default(""),
     state: state.default(""),
@@ -206,6 +211,7 @@ export function eventRoutes(app: FastifyInstance, db: Db, mailer: Mailer): void 
           name: input.name,
           startDate: input.startDate,
           startTime: input.startTime ?? null,
+          ...(input.timezone ? { timezone: input.timezone } : {}),
           location: input.location,
           city: input.city,
           state: input.state,

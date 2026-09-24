@@ -321,8 +321,8 @@ Each feature lists **what it does**, **how we build it**, and **open questions**
 - [x] Mat schedule: rest-aware, bout numbers, groups kept on one mat for youth events, estimated finish
 - [x] Table app (per-mat link): queue with on deck / in the hole and ETAs, live scoring with clock and rules-driven buttons, undo, finish (decision, fall, tech fall, forfeit, injury, DQ), result-only entry, fixes; works offline and syncs later
 - [x] Public mat board (plus ?tv=1 gym TV mode)
-- [ ] Follows and notifications (on deck / in the hole alerts)
-- [ ] Director live console: move bouts between mats, reorder, resolve result conflicts from the UI
+- [x] Follows and notifications: follow a wrestler or a whole team without an account; "My wrestlers" live status page; alerts (first match, in the hole, on deck, result) by web push or email, each sent once; installable app manifest for iPhone push
+- [x] Director live console: move bouts between mats, reorder, reset, fix results, resolve flagged conflicts
 - [ ] Team scores
 - [ ] NCAA riding-time clock on the table screen (engine supports it; UI doesn't yet)
 - [ ] Hosting and deploy (public site)

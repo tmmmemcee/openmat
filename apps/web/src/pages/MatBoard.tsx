@@ -55,6 +55,9 @@ export default function MatBoard() {
             <Link to={`/e/${slug}/brackets`} className="text-brand-700">
               Brackets
             </Link>
+          <Link to={`/e/${slug}/follow`} className="text-brand-700">
+            🔔 My wrestlers
+          </Link>
           </div>
           <Input className="max-w-xs" placeholder="Highlight a wrestler or team…" value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>

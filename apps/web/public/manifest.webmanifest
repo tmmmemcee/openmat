@@ -1,0 +1,10 @@
+{
+  "name": "OpenMat",
+  "short_name": "OpenMat",
+  "description": "Wrestling tournaments: brackets, mats, live results and alerts.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#1e3a8a",
+  "icons": [{ "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

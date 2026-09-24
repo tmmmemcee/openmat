@@ -86,6 +86,7 @@ export default function NewEvent() {
           name,
           startDate,
           startTime: startTime || null,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           location,
           city,
           state: region,

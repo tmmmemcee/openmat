@@ -111,6 +111,10 @@ export default function EventPublic() {
           </Card>
         )}
 
+        <Link to={`/e/${slug}/follow`} className="block rounded-xl bg-amber-400 p-4 shadow-sm hover:bg-amber-300">
+          <div className="font-bold text-slate-900">🔔 Follow your wrestlers →</div>
+          <div className="text-sm text-slate-800">See when they're up next and get alerts when they're in the hole and on deck.</div>
+        </Link>
         <div className="grid gap-3 sm:grid-cols-2">
           <Link to={`/e/${slug}/brackets`} className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 hover:ring-brand-600">
             <div className="font-bold">Brackets & results →</div>

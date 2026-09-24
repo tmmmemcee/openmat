@@ -18,6 +18,7 @@ import { requireRole } from "../auth.js";
 import type { Db } from "../db/client.js";
 import { type BracketFormat, type BracketOptions, bouts, brackets, divisions, entries, groupMembers, groups } from "../db/schema.js";
 import { HttpError } from "../errors.js";
+import type { NotificationScheduler } from "../services/notify.js";
 import { coreBracket, loadBracketViews } from "../services/tournament.js";
 import { loadDivisions, loadEvent } from "./events.js";
 
@@ -102,7 +103,7 @@ async function anyBoutStarted(db: Db, eventId: string, bracketId?: string): Prom
   return started.length > 0;
 }
 
-export function bracketRoutes(app: FastifyInstance, db: Db): void {
+export function bracketRoutes(app: FastifyInstance, db: Db, scheduler: NotificationScheduler): void {
   /** Brackets and bouts, public. */
   app.get<{ Params: { slug: string } }>("/api/events/:slug/brackets", async (req) => {
     const event = await loadEvent(db, req.params.slug);
@@ -272,6 +273,7 @@ export function bracketRoutes(app: FastifyInstance, db: Db): void {
           .where(eq(bouts.id, idOf.get(s.boutId)!));
       }
     });
+    scheduler.poke(event.id);
     const lastEnd = Math.max(0, ...schedule.map((s) => s.end));
     return { scheduled: schedule.length, unscheduled: unscheduled.length, estimatedMinutes: Math.round(lastEnd) };
   });
