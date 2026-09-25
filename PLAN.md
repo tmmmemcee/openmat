@@ -332,6 +332,8 @@ Each feature lists **what it does**, **how we build it**, and **open questions**
 - [x] Position-aware table scoring (folkstyle): neutral / top / bottom follows takedowns, escapes and reversals; only valid buttons show; period-start choice with defer; manual position fix; out-of-position scores flagged; riding clock follows position
 - [x] Automatic tech falls: clock stops and the table is asked to end the match (or keep wrestling for a near fall in progress)
 - [x] Live mat board: score, position and a running match clock for bouts in progress (the table shares its clock)
+- [x] Scaling quick wins: per-tournament snapshot cache (versioned; live taps don't rebuild brackets), ETag/304 and short public caching for CDNs, single all-mats request, alerts only on real mat changes, production bundle with worker processes and optional static hosting. Measured on this machine: one worker went from ~220 to ~1,150–2,250 req/s on the heaviest reads; a mat-board viewer now costs one request per 3s instead of four
+- [ ] Scaling next: alerts in a job queue (diff-based, parallel sends), Redis for rate limits/pubsub, PgBouncer, demo from a template, load test at Saturday scale, monitoring
 - [ ] Hosting and deploy (public site)
 - [ ] Stronger abuse protection on public registration (basic per-IP rate limits are in; add CAPTCHA or email confirmation before going public)
 - [ ] Location search by distance ("within 50 miles"): needs geocoding

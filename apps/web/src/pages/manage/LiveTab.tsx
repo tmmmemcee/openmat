@@ -1,10 +1,9 @@
 import { RULESETS } from "@openmat/core";
-import { useQueries } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { Link } from "react-router";
-import { type Bout, type EventInfo, type MatQueue, type QueueItem, api } from "../../api";
+import { type Bout, type EventInfo, type QueueItem, api } from "../../api";
 import { wrestlerName } from "../../components/BracketView";
-import { useBrackets, useEventMutation } from "../../lib/hooks";
+import { useAllMats, useBrackets, useEventMutation } from "../../lib/hooks";
 import { Badge, Button, Card, ErrorBox, Notice, cx } from "../../ui";
 import { ResultDialog } from "../table/ResultDialog";
 
@@ -15,13 +14,8 @@ export default function LiveTab({ event }: { event: EventInfo }) {
   const slug = event.slug;
   const brackets = useBrackets(slug);
   const mats = Array.from({ length: event.settings.mats }, (_, i) => i + 1);
-  const queues = useQueries({
-    queries: mats.map((m) => ({
-      queryKey: ["mat", slug, m],
-      queryFn: () => api<MatQueue>(`/events/${slug}/mats/${m}`, { slug }),
-      refetchInterval: 5_000,
-    })),
-  });
+  const all = useAllMats(slug, 5_000);
+  const queues = mats.map((_, i) => ({ data: all.data?.[i] }));
   const [fixing, setFixing] = useState<Bout | null>(null);
   const wrestlers = useMemo(() => new Map((brackets.data?.wrestlers ?? []).map((w) => [w.id, w])), [brackets.data]);
   const ruleset = RULESETS.find((r) => r.id === event.ruleset?.id);

@@ -1,10 +1,9 @@
-import { useQueries } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
-import { type MatQueue, type QueueItem, api } from "../api";
+import type { MatQueue, QueueItem } from "../api";
 import { LiveClock } from "../components/LiveClock";
 import { QrCode } from "../components/QrCode";
-import { useEvent } from "../lib/hooks";
+import { useAllMats, useEvent } from "../lib/hooks";
 import { ErrorBox, Header, Input, Page, Spinner, cx } from "../ui";
 
 const time = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "");
@@ -16,14 +15,8 @@ export default function MatBoard() {
   const tv = params.get("tv") === "1";
   const event = useEvent(slug);
   const [query, setQuery] = useState("");
-  const mats = event.data?.settings.mats ?? 0;
-  const results = useQueries({
-    queries: Array.from({ length: mats }, (_, i) => ({
-      queryKey: ["mat", slug, i + 1],
-      queryFn: () => api<MatQueue>(`/events/${slug}/mats/${i + 1}`),
-      refetchInterval: 3_000,
-    })),
-  });
+  const all = useAllMats(slug);
+  const results = Array.from({ length: event.data?.settings.mats ?? 0 }, (_, i) => ({ data: all.data?.[i] }));
 
   if (event.isLoading) return <Spinner />;
   if (!event.data) return <ErrorBox error={event.error} />;

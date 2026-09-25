@@ -227,3 +227,10 @@ export interface MatQueue {
   /** Server time when this was sent, to run clocks without device clock skew. */
   serverNow: string;
 }
+
+/** Every mat at once (mat board, director console). */
+export interface AllMats {
+  mats: { mat: number; queue: QueueItem[]; recent: { bout: Bout; bracketName: string }[] }[];
+  wrestlers: Wrestler[];
+  serverNow: string;
+}

@@ -44,6 +44,19 @@ Environment variables for the API (all optional in development):
 
 To try it with realistic data: `pnpm --filter @openmat/api demo` creates two tournaments mid-event and prints their director links.
 
+### Production
+
+```sh
+pnpm --filter @openmat/web build            # static web app in apps/web/dist
+pnpm --filter @openmat/api build            # bundled server in apps/api/dist
+pnpm --filter @openmat/api migrate:prod
+cd apps/api && NODE_ENV=production WEB_CONCURRENCY=4 STATIC_DIR=../web/dist HOST=0.0.0.0 PORT=3001 node dist/main.js
+```
+
+- `WEB_CONCURRENCY`: worker processes, about one per CPU core.
+- `STATIC_DIR`: serve the web app from the same server (simplest hosting). Or put `apps/web/dist` on a CDN.
+- Put a CDN in front of `/api`: anonymous reads send `Cache-Control: public, max-age=2` and an ETag, so the CDN absorbs viewer traffic. Staff requests are `private, no-store`.
+
 If a director lost their link and gave no email: `pnpm --filter @openmat/api director-link <event slug>` prints a new one.
 
 First time only, create the test database:

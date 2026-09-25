@@ -7,6 +7,7 @@ import { directorUrl } from "../config.js";
 import type { Db } from "../db/client.js";
 import { accessLinks, divisions, entries, events, type EventSettings } from "../db/schema.js";
 import { HttpError } from "../errors.js";
+import { publicCache } from "../httpCache.js";
 import { customAlphabet } from "../ids.js";
 import type { Mailer } from "../mailer.js";
 import { RateLimiter } from "../rateLimit.js";
@@ -111,7 +112,8 @@ export function eventRoutes(app: FastifyInstance, db: Db, mailer: Mailer): void 
   app.get("/api/templates", async () => templates());
 
   /** Public tournament list with filters. Only events marked as listed. */
-  app.get("/api/events", async (req) => {
+  app.get("/api/events", async (req, reply) => {
+    reply.header("cache-control", "public, max-age=30");
     const q = z
       .object({
         q: z.string().trim().max(100).optional(),
@@ -258,8 +260,9 @@ export function eventRoutes(app: FastifyInstance, db: Db, mailer: Mailer): void 
   });
 
   /** Public event info. Staff also get their role; directors get staff links. */
-  app.get<{ Params: { slug: string } }>("/api/events/:slug", async (req) => {
+  app.get<{ Params: { slug: string } }>("/api/events/:slug", async (req, reply) => {
     const event = await loadEvent(db, req.params.slug);
+    if (publicCache(req, reply, `e${event.version}`, 10)) return reply;
     const access = await accessFor(db, req, event.id);
     const divs = await loadDivisions(db, event.id);
     const ruleset = RULESETS.find((r) => r.id === event.rulesetId);

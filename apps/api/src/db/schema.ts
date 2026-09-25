@@ -36,6 +36,13 @@ export const events = pgTable(
     startTime: text("start_time"),
     /** Shown in the public tournament list. */
     listed: boolean("listed").notNull().default(true),
+    /**
+     * Goes up on every change to the tournament's structure (entries, brackets,
+     * schedule, results). Cached views are rebuilt when it changes.
+     */
+    version: integer("version").notNull().default(0),
+    /** Goes up on live-only changes (scoring taps, the match clock): scores refresh, brackets don't rebuild. */
+    liveVersion: integer("live_version").notNull().default(0),
     /** A try-it-out copy from the home page's live demo; never listed, deleted after a day. */
     isDemo: boolean("is_demo").notNull().default(false),
     /** Where to send a new director link if it's lost. Never shown publicly. */

@@ -104,7 +104,7 @@ describe("follows and alerts", () => {
     const s = await setup();
     await s.post("/brackets/generate", { format: "double-elim" });
     await s.post("/brackets/schedule", {});
-    const status = (await s.post("/wrestler-status", { ids: [s.ids[0]] }, {})).json();
+    const status = (await app.inject({ url: `/api/events/${s.slug}/wrestler-status?ids=${s.ids[0]}` })).json();
     expect(status[0]).toMatchObject({ name: "Kid0 Q", team: "Hawks", bracket: { name: "HS · 106" }, next: { mat: 1 } });
     expect(status[0].next.boutNumber).toMatch(/^1\d\d$/);
     const roster = (await app.inject({ url: `/api/events/${s.slug}/roster` })).json();

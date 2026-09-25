@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createDb } from "../src/db/client.js";
-import { bouts } from "../src/db/schema.js";
-import { eq } from "drizzle-orm";
+import { bouts, events } from "../src/db/schema.js";
+import { eq, sql } from "drizzle-orm";
 import { app, auth, createEvent } from "./helpers.js";
 
 const { db } = createDb();
@@ -112,6 +112,8 @@ describe("brackets", () => {
     let b = (await s.call("GET", "/brackets")).json().brackets[0];
     const semi = b.bouts.find((x: { key: string }) => x.key === "W1-1");
     await db.update(bouts).set({ winnerEntryId: semi.a, startedAt: new Date(), endedAt: new Date() }).where(eq(bouts.id, semi.id));
+    // A direct database write, so tell the cache (the API does this itself).
+    await db.update(events).set({ version: sql`${events.version} + 1` }).where(eq(events.slug, s.slug));
     b = (await s.call("GET", "/brackets")).json().brackets[0];
     expect(b.bouts.find((x: { key: string }) => x.key === "W2-1").a).toBe(semi.a);
     expect(b.bouts.find((x: { key: string }) => x.key === "W1-1").status).toBe("done");

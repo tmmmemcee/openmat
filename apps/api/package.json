@@ -12,9 +12,13 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/migrate.ts",
     "director-link": "tsx src/cli/director-link.ts",
-    "demo": "tsx src/cli/demo.ts"
+    "demo": "tsx src/cli/demo.ts",
+    "build": "node build.mjs",
+    "start:prod": "NODE_ENV=production node dist/main.js",
+    "migrate:prod": "node dist/migrate.js"
   },
   "dependencies": {
+    "@fastify/static": "^10.1.4",
     "@openmat/core": "workspace:*",
     "drizzle-orm": "^0.45.3",
     "fastify": "^5.12.5",
@@ -28,6 +32,7 @@
     "@types/nodemailer": "^8.0.2",
     "@types/web-push": "^3.6.4",
     "drizzle-kit": "^0.31.11",
+    "esbuild": "^0.28.2",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vitest": "^5.0.1"
