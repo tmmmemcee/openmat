@@ -21,6 +21,8 @@ import type { Db } from "../db/client.js";
 import { type BracketFormat, type BracketOptions, bouts, brackets, divisions, entries, groupMembers, groups } from "../db/schema.js";
 import { HttpError } from "../errors.js";
 import type { NotificationScheduler } from "../services/notify.js";
+import { publicCache } from "../httpCache.js";
+import { memo, snapshot } from "../services/snapshot.js";
 import { coreBracket, loadBracketViews } from "../services/tournament.js";
 import { loadDivisions, loadEvent } from "./events.js";
 
@@ -106,25 +108,35 @@ async function anyBoutStarted(db: Db, eventId: string, bracketId?: string): Prom
 }
 
 export function bracketRoutes(app: FastifyInstance, db: Db, scheduler: NotificationScheduler): void {
-  /** Brackets and bouts, public. */
-  app.get<{ Params: { slug: string } }>("/api/events/:slug/brackets", async (req) => {
+  /** Brackets and bouts, public. Built once per change and cached. */
+  app.get<{ Params: { slug: string } }>("/api/events/:slug/brackets", async (req, reply) => {
     const event = await loadEvent(db, req.params.slug);
-    const views = await loadBracketViews(db, event.id);
-    const ids = [...new Set(views.flatMap((b) => b.draw.filter((x): x is string => !!x)))];
-    const wrestlers = ids.length
-      ? await db
-          .select({ id: entries.id, firstName: entries.firstName, lastName: entries.lastName, team: entries.team, seed: entries.seed, weight: entries.weight })
-          .from(entries)
-          .where(inArray(entries.id, ids))
-      : [];
-    return { brackets: views, wrestlers };
+    if (publicCache(req, reply, `b${event.version}`)) return reply;
+    const snap = await snapshot(db, event);
+    const body = await memo(snap, "brackets", async () => {
+      const ids = [...new Set(snap.views.flatMap((b) => b.draw.filter((x): x is string => !!x)))];
+      const wrestlers = ids.length
+        ? await db
+            .select({ id: entries.id, firstName: entries.firstName, lastName: entries.lastName, team: entries.team, seed: entries.seed, weight: entries.weight })
+            .from(entries)
+            .where(inArray(entries.id, ids))
+        : [];
+      return JSON.stringify({ brackets: snap.views, wrestlers });
+    });
+    return reply.type("application/json").send(body);
   });
 
   /** Team scores so far (advancement, bonus and placement points). Public. */
-  app.get<{ Params: { slug: string } }>("/api/events/:slug/team-scores", async (req) => {
+  app.get<{ Params: { slug: string } }>("/api/events/:slug/team-scores", async (req, reply) => {
     const event = await loadEvent(db, req.params.slug);
-    const bs = await db.select().from(brackets).where(eq(brackets.eventId, event.id));
-    const views = await loadBracketViews(db, event.id);
+    if (publicCache(req, reply, `t${event.version}`, 10)) return reply;
+    const snap = await snapshot(db, event);
+    const body = await memo(snap, "team-scores", () => teamScoresJson(db, event.id, snap.views));
+    return reply.type("application/json").send(body);
+  });
+
+  async function teamScoresJson(db: Db, eventId: string, views: Awaited<ReturnType<typeof loadBracketViews>>): Promise<string> {
+    const bs = await db.select().from(brackets).where(eq(brackets.eventId, eventId));
     const scored: ScoredBracket[] = views.map((v) => {
       const row = bs.find((b) => b.id === v.id)!;
       const core = coreBracket(row);
@@ -145,10 +157,10 @@ export function bracketRoutes(app: FastifyInstance, db: Db, scheduler: Notificat
         places: v.places,
       };
     });
-    const people = await db.select({ id: entries.id, team: entries.team }).from(entries).where(eq(entries.eventId, event.id));
+    const people = await db.select({ id: entries.id, team: entries.team }).from(entries).where(eq(entries.eventId, eventId));
     const teamOf = new Map(people.map((p) => [p.id, p.team]));
-    return teamScores(scored, (id) => teamOf.get(id) || undefined);
-  });
+    return JSON.stringify(teamScores(scored, (id) => teamOf.get(id) || undefined));
+  }
 
   /** Make brackets for everyone: one per Madison group, or one per weight class. Replaces existing brackets. */
   app.post<{ Params: { slug: string } }>("/api/events/:slug/brackets/generate", async (req) => {

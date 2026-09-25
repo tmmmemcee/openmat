@@ -6,8 +6,9 @@ import { type Access, accessFor, requireRole } from "../auth.js";
 import type { Db } from "../db/client.js";
 import { boutEvents, bouts, entries } from "../db/schema.js";
 import { HttpError } from "../errors.js";
-import { matQueues } from "../services/live.js";
+import { publicCache } from "../httpCache.js";
 import type { NotificationScheduler } from "../services/notify.js";
+import { bumpVersion, liveDetails, memo, queues, snapshot } from "../services/snapshot.js";
 import { type BoutView, BYE, loadBoutEvents, loadBracketViews, toEngineEvents } from "../services/tournament.js";
 import { loadDivisions, loadEvent } from "./events.js";
 
@@ -53,7 +54,7 @@ const finishInput = z.union([
 ]);
 
 async function findBout(db: Db, event: Event, boutId: string): Promise<{ view: BoutView; bracketName: string }> {
-  const views = await loadBracketViews(db, event.id);
+  const { views } = await snapshot(db, event);
   for (const b of views) {
     const view = b.bouts.find((x) => x.id === boutId);
     if (view) return { view, bracketName: b.name };
@@ -81,36 +82,58 @@ export function boutRoutes(app: FastifyInstance, db: Db, scheduler: Notification
   // (Queued before the response goes out, so the next request already sees it pending.)
   app.addHook("onSend", async (req, reply, payload) => {
     const slug = (req.params as { slug?: string } | undefined)?.slug;
-    if (slug && req.method !== "GET" && reply.statusCode < 400 && req.url.includes("/bouts/")) {
+    if (slug && req.method !== "GET" && reply.statusCode < 400 && req.url.includes("/bouts/") && !req.routeOptions.config.live) {
       const event = await loadEvent(db, slug).catch(() => null);
       if (event) scheduler.poke(event.id);
     }
     return payload;
   });
 
-  /** A mat's queue: wrestling now, on deck, in the hole, then the rest, with estimated start times. */
-  app.get<{ Params: { slug: string; mat: string } }>("/api/events/:slug/mats/:mat", async (req) => {
+  /** Everything a mat needs: its line (with live details for the bout in progress) and recent results. */
+  async function matView(event: Event, mat: number) {
+    const snap = await snapshot(db, event);
+    const live = await liveDetails(db, snap, event);
+    const queue = (queues(snap, event.settings.mats).get(mat) ?? []).map((q) => (live.has(q.bout.id) ? { ...q, live: live.get(q.bout.id) } : q));
+    const recent = await memo(snap, `recent:${mat}`, () =>
+      snap.views
+        .flatMap((b) => b.bouts.map((x) => ({ bout: x, bracketName: b.name })))
+        .filter((x) => x.bout.mat === mat && x.bout.status === "done")
+        .sort((x, y) => (y.bout.endedAt?.getTime() ?? 0) - (x.bout.endedAt?.getTime() ?? 0))
+        .slice(0, 10),
+    );
+    return { mat, queue, recent };
+  }
+
+  /** Names and teams of everyone in the brackets (for mat views). */
+  async function people(event: Event) {
+    const snap = await snapshot(db, event);
+    return memo(snap, "people", () =>
+      db.select({ id: entries.id, firstName: entries.firstName, lastName: entries.lastName, team: entries.team }).from(entries).where(eq(entries.eventId, event.id)),
+    );
+  }
+
+  const liveTag = (event: Event) => `m${event.version}.${event.liveVersion}.${Math.floor(Date.now() / 10_000)}`;
+
+  /** One mat's line: wrestling now, on deck, in the hole, then the rest, with estimated start times. */
+  app.get<{ Params: { slug: string; mat: string } }>("/api/events/:slug/mats/:mat", async (req, reply) => {
     const event = await loadEvent(db, req.params.slug);
     const mat = Number(req.params.mat);
     if (!Number.isInteger(mat) || mat < 1 || mat > event.settings.mats) throw new HttpError(404, "No such mat.");
-    const views = await loadBracketViews(db, event.id);
-    const ruleset = rulesetFor(event);
-    const queue = await Promise.all(
-      (matQueues(views, event.settings.mats).get(mat) ?? []).map(async (q) =>
-        q.bout.status === "wrestling" ? { ...q, live: await liveDetails(db, ruleset, q.bout) } : q,
-      ),
-    );
-    const ids = [...new Set(queue.flatMap((q) => [q.bout.a, q.bout.b]).filter((x): x is string => !!x && x !== BYE))];
-    const recent = views
-      .flatMap((b) => b.bouts.map((x) => ({ bout: x, bracketName: b.name })))
-      .filter((x) => x.bout.mat === mat && x.bout.status === "done")
-      .sort((x, y) => (y.bout.endedAt?.getTime() ?? 0) - (x.bout.endedAt?.getTime() ?? 0))
-      .slice(0, 10);
-    for (const r of recent) for (const id of [r.bout.a, r.bout.b]) if (id && id !== BYE && !ids.includes(id)) ids.push(id);
-    const wrestlers = ids.length
-      ? await db.select({ id: entries.id, firstName: entries.firstName, lastName: entries.lastName, team: entries.team }).from(entries).where(inArray(entries.id, ids))
-      : [];
-    return { mat, queue, recent, wrestlers, serverNow: new Date().toISOString() };
+    if (publicCache(req, reply, `${liveTag(event)}.${mat}`)) return reply;
+    const view = await matView(event, mat);
+    const ids = new Set([...view.queue.map((q) => q.bout), ...view.recent.map((r) => r.bout)].flatMap((b) => [b.a, b.b]));
+    const wrestlers = (await people(event)).filter((p) => ids.has(p.id));
+    return { ...view, wrestlers, serverNow: new Date().toISOString() };
+  });
+
+  /** Every mat at once (mat board, director console): one request instead of one per mat. */
+  app.get<{ Params: { slug: string } }>("/api/events/:slug/mats", async (req, reply) => {
+    const event = await loadEvent(db, req.params.slug);
+    if (publicCache(req, reply, liveTag(event))) return reply;
+    const mats = await Promise.all(Array.from({ length: event.settings.mats }, (_, i) => matView(event, i + 1)));
+    const ids = new Set(mats.flatMap((m) => [...m.queue.map((q) => q.bout), ...m.recent.map((r) => r.bout)]).flatMap((b) => [b.a, b.b]));
+    const wrestlers = (await people(event)).filter((p) => ids.has(p.id));
+    return { mats, wrestlers, serverNow: new Date().toISOString() };
   });
 
   /** Everything the scoring screen needs for one bout. */
@@ -139,7 +162,7 @@ export function boutRoutes(app: FastifyInstance, db: Db, scheduler: Notification
   });
 
   /** The table reports its match clock (start, stop, new period, corrections) so live views can show it. */
-  app.post<{ Params: { slug: string; id: string } }>("/api/events/:slug/bouts/:id/clock", async (req) => {
+  app.post<{ Params: { slug: string; id: string } }>("/api/events/:slug/bouts/:id/clock", { config: { live: true } }, async (req) => {
     const event = await loadEvent(db, req.params.slug);
     const access = await requireRole(db, req, event.id, "table");
     const { view } = await findBout(db, event, req.params.id);
@@ -168,7 +191,7 @@ export function boutRoutes(app: FastifyInstance, db: Db, scheduler: Notification
    * Add scoring events. Ids come from the device, so sending the same event
    * twice (e.g. retrying after a dropped connection) is harmless.
    */
-  app.post<{ Params: { slug: string; id: string } }>("/api/events/:slug/bouts/:id/events", async (req) => {
+  app.post<{ Params: { slug: string; id: string } }>("/api/events/:slug/bouts/:id/events", { config: { live: true } }, async (req) => {
     const event = await loadEvent(db, req.params.slug);
     const access = await requireRole(db, req, event.id, "table");
     const { view } = await findBout(db, event, req.params.id);
@@ -179,7 +202,10 @@ export function boutRoutes(app: FastifyInstance, db: Db, scheduler: Notification
       .values(events.map((e) => ({ id: e.id, boutId: view.id, data: e, by: byOf(access) })))
       .onConflictDoNothing();
     if (!view.startedAt && view.status === "ready") {
+      // The first tap starts the bout: that changes the mat line, not just the score.
       await db.update(bouts).set({ startedAt: new Date(), entryA: view.a, entryB: view.b }).where(eq(bouts.id, view.id));
+      await bumpVersion(db, event.id);
+      scheduler.poke(event.id);
     }
     const log = await loadBoutEvents(db, view.id);
     return { state: boutState(rulesetFor(event), toEngineEvents(log)) };
@@ -303,14 +329,4 @@ export function boutRoutes(app: FastifyInstance, db: Db, scheduler: Notification
       .where(and(eq(bouts.id, view.id), eq(bouts.eventId, event.id)));
     return { ok: true };
   });
-}
-
-/** Score, position and clock of a bout being wrestled, for live views. */
-async function liveDetails(db: Db, ruleset: ReturnType<typeof rulesetFor>, bout: BoutView) {
-  const state = boutState(ruleset, toEngineEvents(await loadBoutEvents(db, bout.id)));
-  return {
-    score: state.score,
-    position: ruleset.tracksPosition ? state.position : null,
-    clock: bout.clock ?? null,
-  };
 }

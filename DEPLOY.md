@@ -60,9 +60,13 @@ git push                                # auto-deploys web + api
   upgrade to the $7/mo plan to keep it always-warm.
 - **Postgres free tier is 90 days.** Set a calendar reminder. To migrate off,
   dump with `pg_dump` and restore into Neon / Supabase / etc.
-- **No SMTP / push by default.** Without `SMTP_URL` set, emails are logged
-  (visible in the Render API logs). Without VAPID keys set, push
-  notifications are skipped. Both are easy to add later as env vars.
+- **No email by default.** Without `SMTP_URL` set, emails are logged
+  (visible in the Render API logs); add `SMTP_URL` and `MAIL_FROM` to send
+  real email. Push alerts work out of the box: the API creates its web push
+  (VAPID) keys on first use and keeps them in the database. To manage the
+  keys yourself, set `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY`.
+- **Database migrations run automatically** each time the API starts, so a
+  fresh database gets its tables on the first deploy.
 
 ## Going custom-domain later
 

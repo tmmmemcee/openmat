@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
-import { type Bracket, type Entry, type EventInfo, type Group, type MatQueue, type Wrestler, api } from "../api";
+import { type AllMats, type Bracket, type Entry, type EventInfo, type Group, type MatQueue, type Wrestler, api } from "../api";
 import { captureTokenFromHash } from "../token";
 
 /** Event info for this browser's access level. Picks up a token from the link first. */
@@ -56,5 +56,15 @@ export function useMatQueue(slug: string, mat: number) {
     queryKey: ["mat", slug, mat],
     queryFn: () => api<MatQueue>(`/events/${slug}/mats/${mat}`, { slug }),
     refetchInterval: 5_000,
+  });
+}
+
+/** Every mat's line in one request, split into per-mat views. */
+export function useAllMats(slug: string, refetchInterval = 3_000) {
+  return useQuery({
+    queryKey: ["mat", slug, "all"],
+    queryFn: () => api<AllMats>(`/events/${slug}/mats`, { slug }),
+    refetchInterval,
+    select: (d): MatQueue[] => d.mats.map((m) => ({ ...m, wrestlers: d.wrestlers, serverNow: d.serverNow })),
   });
 }

@@ -6,9 +6,10 @@ import type { Db } from "../db/client.js";
 import { divisions, entries, follows } from "../db/schema.js";
 import { HttpError } from "../errors.js";
 import { RateLimiter } from "../rateLimit.js";
-import { matQueues } from "../services/live.js";
+import { publicCache } from "../httpCache.js";
 import type { NotificationScheduler, Notifier } from "../services/notify.js";
-import { BYE, loadBracketViews } from "../services/tournament.js";
+import { queues, snapshot } from "../services/snapshot.js";
+import { BYE } from "../services/tournament.js";
 import { loadEvent } from "./events.js";
 
 const subscription = z.object({
@@ -22,8 +23,9 @@ export function followRoutes(app: FastifyInstance, db: Db, notifier: Notifier, s
   app.get("/api/push/key", async () => ({ publicKey: await notifier.publicKey() }));
 
   /** Everyone entered (not scratched): names, teams, divisions. Public, for finding a wrestler to follow. */
-  app.get<{ Params: { slug: string } }>("/api/events/:slug/roster", async (req) => {
+  app.get<{ Params: { slug: string } }>("/api/events/:slug/roster", async (req, reply) => {
     const event = await loadEvent(db, req.params.slug);
+    if (publicCache(req, reply, `r${event.version}`, 30)) return reply;
     const rows = await db
       .select({ id: entries.id, firstName: entries.firstName, lastName: entries.lastName, team: entries.team, division: divisions.name })
       .from(entries)
@@ -34,7 +36,7 @@ export function followRoutes(app: FastifyInstance, db: Db, notifier: Notifier, s
   });
 
   /** Follow a wrestler or a team and get alerts by push or email. Returns a secret the device keeps to unfollow. */
-  app.post<{ Params: { slug: string } }>("/api/events/:slug/follows", async (req, reply) => {
+  app.post<{ Params: { slug: string } }>("/api/events/:slug/follows", { config: { readOnly: true } }, async (req, reply) => {
     const event = await loadEvent(db, req.params.slug);
     if (!limiter.allow(req.ip)) throw new HttpError(429, "Too many requests. Please wait a bit.");
     const input = z
@@ -78,13 +80,18 @@ export function followRoutes(app: FastifyInstance, db: Db, notifier: Notifier, s
   });
 
   /** Where followed wrestlers stand: next bout (mat, place in line, time) and results so far. */
-  app.post<{ Params: { slug: string } }>("/api/events/:slug/wrestler-status", async (req) => {
+  app.get<{ Params: { slug: string }; Querystring: { ids?: string } }>("/api/events/:slug/wrestler-status", async (req, reply) => {
     const event = await loadEvent(db, req.params.slug);
-    const { ids } = z.object({ ids: z.array(z.string().uuid()).max(100) }).parse(req.body);
+    const ids = z
+      .array(z.string().uuid())
+      .max(100)
+      .parse((req.query.ids ?? "").split(",").filter(Boolean));
     if (!ids.length) return [];
-    const views = await loadBracketViews(db, event.id);
+    if (publicCache(req, reply, `s${event.version}.${Math.floor(Date.now() / 10_000)}`, 5)) return reply;
+    const snap = await snapshot(db, event);
+    const views = snap.views;
     const queue = new Map<string, { position: string; estimatedStart: string | null }>();
-    for (const items of matQueues(views, event.settings.mats).values()) for (const i of items) queue.set(i.bout.id, i);
+    for (const items of queues(snap, event.settings.mats).values()) for (const i of items) queue.set(i.bout.id, i);
     const people = await db
       .select({ id: entries.id, firstName: entries.firstName, lastName: entries.lastName, team: entries.team, status: entries.status })
       .from(entries)

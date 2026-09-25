@@ -11,7 +11,8 @@ import { type Corner, seededRandom } from "@openmat/core";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import type { Db } from "../db/client.js";
-import { bouts } from "../db/schema.js";
+import { bouts, events } from "../db/schema.js";
+import { bumpVersion } from "./snapshot.js";
 
 export type DemoKind = "youth" | "high-school";
 
@@ -106,6 +107,9 @@ async function playOut(slug: string, director: string, share: number, pace: numb
       await db.update(bouts).set({ startedAt: new Date(now - 90_000) }).where(eq(bouts.id, next.bout.id));
     }
   }
+  // Times were edited directly in the database, so refresh cached views.
+  const [row] = await db.select({ id: events.id }).from(events).where(eq(events.slug, slug));
+  await bumpVersion(db, row!.id);
   return info;
 }
 

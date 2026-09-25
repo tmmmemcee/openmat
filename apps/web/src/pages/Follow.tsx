@@ -42,7 +42,7 @@ export default function Follow() {
   const ids = [...new Set([...following.wrestlers, ...teamMembers])];
   const status = useQuery({
     queryKey: ["status", slug, ids.join(",")],
-    queryFn: () => api<Status[]>(`/events/${slug}/wrestler-status`, { method: "POST", body: { ids } }),
+    queryFn: () => api<Status[]>(`/events/${slug}/wrestler-status?ids=${[...ids].sort().join(",")}`),
     enabled: ids.length > 0,
     refetchInterval: 10_000,
   });

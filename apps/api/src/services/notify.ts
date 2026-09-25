@@ -8,8 +8,8 @@ import webpush from "web-push";
 import type { Db } from "../db/client.js";
 import { entries, events, follows, notificationLog, type PushSubscriptionJson, serverSettings } from "../db/schema.js";
 import type { Mailer } from "../mailer.js";
-import { matQueues } from "./live.js";
-import { type BoutView, BYE, loadBracketViews } from "./tournament.js";
+import { queues, snapshot } from "./snapshot.js";
+import { type BoutView, BYE } from "./tournament.js";
 
 export interface Alert {
   title: string;
@@ -174,10 +174,11 @@ export async function runNotifications(db: Db, eventId: string, notifier: Notifi
   if (!fs.length) return 0;
   const [event] = await db.select().from(events).where(eq(events.id, eventId));
   if (!event) return 0;
-  const views = await loadBracketViews(db, eventId);
+  const snap = await snapshot(db, event);
+  const views = snap.views;
   const bouts = views.flatMap((b) => b.bouts);
   const queue = new Map<string, { position: string; estimatedStart: string | null; bracketName: string }>();
-  for (const items of matQueues(views, event.settings.mats).values()) {
+  for (const items of queues(snap, event.settings.mats).values()) {
     for (const i of items) queue.set(i.bout.id, { position: i.position, estimatedStart: i.estimatedStart, bracketName: i.bracketName });
   }
   const bracketOf = new Map(views.flatMap((v) => v.bouts.map((b) => [b.id, v.name] as const)));

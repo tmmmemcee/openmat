@@ -10,12 +10,19 @@ services:
     runtime: node
     plan: free
     region: oregon
-    buildCommand: pnpm install --frozen-lockfile --prod=false
-    startCommand: pnpm --filter @openmat/api start
+    # Bundles the API (apps/api/dist). Start runs database migrations first
+    # (a no-op when the schema is current), then the production server.
+    buildCommand: pnpm install --frozen-lockfile --prod=false && pnpm --filter @openmat/api build
+    startCommand: cd apps/api && node dist/migrate.js && node dist/main.js
     healthCheckPath: /api/health
     envVars:
       - key: NODE_VERSION
         value: "24"
+      - key: NODE_ENV
+        value: production
+      # Worker processes; raise to about one per CPU core on bigger plans.
+      - key: WEB_CONCURRENCY
+        value: "1"
       - key: HOST
         value: 0.0.0.0
       - key: PORT
