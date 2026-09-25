@@ -1,4 +1,4 @@
-# OpenMat (working name)
+# OpenMat
 
 Free, open-source software for running wrestling tournaments: registration, weigh-ins, youth "Madison" grouping, brackets, mat scheduling, live table scoring, and on-deck / in-the-hole alerts for fans.
 

@@ -1,4 +1,4 @@
-# OpenMat — Open-Source Tournament Platform (working name)
+# OpenMat — Open-Source Tournament Platform
 
 Planning doc, drafted 2026-09-24. Scope: wrestling first (all styles), designed so other combat/bracket sports (BJJ, judo) can plug in later.
 
@@ -292,7 +292,7 @@ Each feature lists **what it does**, **how we build it**, and **open questions**
 
 ## 6. Decisions (2026-09-24)
 
-- **Name:** undecided. "OpenMat" stays as the placeholder.
+- **Name:** OpenMat (decided 2026-09-25).
 - **Language:** TypeScript everywhere.
 - **License:** MIT.
 - **Hosting:** start as a free public site we run; paid hosting later once it's up. Self-hosting stays possible but isn't the focus.
