@@ -75,6 +75,7 @@ export interface EventInfo {
   name: string;
   startDate: string;
   startTime: string | null;
+  timezone: string;
   location: string;
   city: string;
   state: string;

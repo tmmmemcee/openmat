@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
-import { useNavigate } from "react-router";
-import { type Templates, api } from "../api";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router";
+import { type EventInfo, type Templates, api } from "../api";
 import { Button, Card, CopyButton, ErrorBox, Field, Header, Input, Notice, Page, Select, Spinner, cx } from "../ui";
 import { REGIONS } from "../lib/states";
 import { setToken, staffUrl } from "../token";
@@ -27,7 +27,17 @@ const presetDivisionName = (preset: string) =>
   preset.replace("NFHS Boys (14)", "High School Boys").replace("NFHS Girls (14)", "High School Girls").replace("USAW Kids ", "");
 
 export default function NewEvent() {
+  const [searchParams] = useSearchParams();
+  const cloneSlug = searchParams.get("clone");
   const templates = useQuery({ queryKey: ["templates"], queryFn: () => api<Templates>("/templates") });
+  /** When ?clone=<slug> is set, pull the source event so we can pre-fill the wizard.
+   *  Failures (no token, 404, etc.) are silently ignored — the wizard just runs from scratch. */
+  const cloneSource = useQuery({
+    queryKey: ["event", cloneSlug],
+    queryFn: () => api<EventInfo>(`/events/${cloneSlug}`, { slug: cloneSlug ?? undefined }),
+    enabled: !!cloneSlug,
+    retry: false,
+  });
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -44,6 +54,8 @@ export default function NewEvent() {
   const [rulesetId, setRulesetId] = useState<string>("");
   const [mats, setMats] = useState(4);
   const [restMin, setRestMin] = useState<number | null>(null);
+  const [timezone, setTimezone] = useState<string>(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
+  const [cloneBannerDismissed, setCloneBannerDismissed] = useState(false);
   const [created, setCreated] = useState<{ slug: string; directorToken: string } | null>(null);
   const navigate = useNavigate();
 
@@ -78,6 +90,49 @@ export default function NewEvent() {
       }));
   }, [t, kind, ages, genders, presets, ruleset]);
 
+  /** Pre-fill from a source event when ?clone=<slug> resolves. Runs once per source. */
+  useEffect(() => {
+    const src = cloneSource.data;
+    if (!cloneSlug || !src || !templates.data) return;
+    setName(`${src.name} (copy)`);
+    setStartDate(src.startDate);
+    setStartTime(src.startTime ?? "09:00");
+    setLocation(src.location);
+    setCity(src.city);
+    setRegion(src.state);
+    setDirectorEmail(src.directorEmail ?? "");
+    setListed(false);
+    const newKind: Kind = src.format === "madison" ? "youth" : "official";
+    setKind(newKind);
+    if (newKind === "youth") {
+      const ageSet = new Set<string>();
+      let hasBoys = false;
+      let hasGirls = false;
+      for (const d of src.divisions) {
+        if (d.ageDivision) ageSet.add(d.ageDivision);
+        if (d.gender === "boys") hasBoys = true;
+        if (d.gender === "girls") hasGirls = true;
+      }
+      setAges([...ageSet]);
+      setGenders(hasBoys || hasGirls ? "separate" : "together");
+    } else {
+      const matched: string[] = [];
+      for (const d of src.divisions) {
+        const preset = templates.data.weightClassPresets.find((p) => presetDivisionName(p.name) === d.name);
+        if (preset) matched.push(preset.name);
+      }
+      setPresets(matched);
+    }
+    setRulesetId(src.ruleset?.id ?? "");
+    setMats(src.settings.mats);
+    setRestMin(src.settings.restMin);
+    if (src.timezone) setTimezone(src.timezone);
+    setCloneBannerDismissed(false);
+    setStep(0);
+    // We deliberately only re-run when the source changes, not on every state edit.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cloneSlug, cloneSource.data, templates.data]);
+
   const create = useMutation({
     mutationFn: () =>
       api<{ slug: string; directorToken: string }>("/events", {
@@ -86,7 +141,7 @@ export default function NewEvent() {
           name,
           startDate,
           startTime: startTime || null,
-          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          timezone,
           location,
           city,
           state: region,
@@ -161,6 +216,22 @@ export default function NewEvent() {
             <li key={s} className={cx("h-1.5 flex-1 rounded-full", i <= step ? "bg-brand-700" : "bg-slate-200")} aria-label={s} />
           ))}
         </ol>
+        {cloneSource.data && !cloneBannerDismissed && (
+          <div className="mb-4 flex items-start justify-between gap-3 rounded-lg bg-brand-50 px-4 py-3 text-sm text-brand-900 ring-1 ring-brand-100">
+            <span>
+              Cloning from <strong>{cloneSource.data.name}</strong>. The new event starts unlisted with registration closed — tweak anything
+              before creating.
+            </span>
+            <button
+              type="button"
+              onClick={() => setCloneBannerDismissed(true)}
+              className="rounded p-1 text-brand-700 hover:bg-brand-100"
+              aria-label="Dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        )}
         <Card>
           {step === 0 && (
             <div className="space-y-4">

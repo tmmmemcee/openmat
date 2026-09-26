@@ -20,6 +20,7 @@ import WeighIn from "./pages/WeighIn";
 export const router = createBrowserRouter([
   { path: "/", element: <Home /> },
   { path: "/new", element: <NewEvent /> },
+  { path: "/new-event", element: <NewEvent /> },
   { path: "/tournaments", element: <Tournaments /> },
   { path: "/recover", element: <Recover /> },
   { path: "/e/:slug", element: <EventPublic /> },
