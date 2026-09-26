@@ -4,3 +4,21 @@ coverage/
 .env
 *.log
 apps/api/uploads/
+
+# TypeScript incremental build cache
+*.tsbuildinfo
+
+# Local env overrides (separate from the tracked .env)
+.env.local
+.env.*.local
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# IDE / editor folders and temp files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
