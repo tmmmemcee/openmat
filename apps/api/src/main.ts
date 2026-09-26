@@ -32,7 +32,7 @@ if (cluster.isPrimary && workers > 1) {
 } else {
   const { db } = createDb();
   const app = await buildApp(db, { logger: { level: process.env.LOG_LEVEL ?? "info" } });
-  await serveUploads(app, process.env.UPLOADS_DIR ?? resolve(process.cwd(), "apps/api/uploads"));
+  await serveUploads(app, db, process.env.UPLOADS_DIR ?? resolve(process.cwd(), "apps/api/uploads"));
   if (process.env.STATIC_DIR) await serveWebApp(app, process.env.STATIC_DIR);
   await app.listen({ port: Number(process.env.PORT ?? 3001), host: process.env.HOST ?? "127.0.0.1" });
   if (workers === 1) sweepDemos((err) => app.log.error(err, "demo cleanup failed"));

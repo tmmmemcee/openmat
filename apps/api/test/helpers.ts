@@ -1,13 +1,20 @@
 import { afterAll, beforeEach } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { buildApp } from "../src/app.js";
 import { createDb } from "../src/db/client.js";
 import { memoryMailer } from "../src/mailer.js";
 import { memoryNotifier } from "../src/services/notify.js";
+import { serveUploads } from "../src/static.js";
 
+const uploadsDir = mkdtempSync(path.join(tmpdir(), "openmat-uploads-"));
+process.env.UPLOADS_DIR = uploadsDir;
 const { db, sql } = createDb();
 export const mailer = memoryMailer();
 export const notifier = memoryNotifier();
 export const app = await buildApp(db, { mailer, notifier });
+await serveUploads(app, db, uploadsDir);
 
 beforeEach(async () => {
   await sql`truncate events cascade`;
@@ -18,6 +25,7 @@ beforeEach(async () => {
 afterAll(async () => {
   await app.close();
   await sql.end();
+  rmSync(uploadsDir, { recursive: true, force: true });
 });
 
 export const auth = (token: string) => ({ authorization: `Bearer ${token}` });

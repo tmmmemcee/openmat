@@ -50,6 +50,7 @@ const entryPatch = z.object({
   bumpAge: z.number().int().min(0, "Wrestlers can only move up, never down").max(3).optional(),
   bumpWeight: z.number().int().min(0, "Wrestlers can only move up, never down").max(3).optional(),
   consent: z.boolean().optional(),
+  photoConsent: z.boolean().optional(),
   status: z.enum(["registered", "weighed-in", "scratched"]).optional(),
   contactEmail: z.string().trim().email().max(200).nullish().or(z.literal("").transform(() => null)),
   notes: z.string().trim().max(500).optional(),
@@ -161,7 +162,9 @@ function entryPhotoPath(entryId: string, ext: string): string {
 }
 
 function photoFileFromUrl(photoUrl: string): string | null {
-  const m = photoUrl.match(/^\/uploads\/entries\/([^/]+)$/);
+  // Tight enough to reject path traversal (".." or any separator) — photos are
+  // always written as <entryId>.<ext>, and entry ids are UUIDs.
+  const m = photoUrl.match(/^\/uploads\/entries\/([\w-]+\.(?:jpg|png|webp))$/);
   return m ? path.join(uploadsDir(), "entries", m[1]!) : null;
 }
 
@@ -314,12 +317,11 @@ export function entryRoutes(app: FastifyInstance, db: Db): void {
 
   app.post<{ Params: { slug: string; id: string } }>(
     "/api/events/:slug/entries/:id/photo",
-    { config: { readOnly: true } },
     async (req) => {
       const event = await loadEvent(db, req.params.slug);
       await requireRole(db, req, event.id, "director", "weigh-in");
       const [entry] = await db
-        .select({ id: entries.id })
+        .select({ id: entries.id, photoUrl: entries.photoUrl })
         .from(entries)
         .where(and(eq(entries.id, req.params.id), eq(entries.eventId, event.id)));
       if (!entry) throw new HttpError(404, "Wrestler not found.");
@@ -332,11 +334,18 @@ export function entryRoutes(app: FastifyInstance, db: Db): void {
       const dir = path.join(uploadsDir(), "entries");
       await mkdir(dir, { recursive: true });
       const filePath = entryPhotoPath(entry.id, ext);
-      // Replace any existing file (different extension).
-      try {
-        await unlink(filePath);
-      } catch {
-        // Nothing there — fine.
+      // Replace any existing photo first — the old file may have a different
+      // extension than the new upload, so derive its path from the stored
+      // photoUrl rather than the incoming one.
+      if (entry.photoUrl) {
+        const oldPath = photoFileFromUrl(entry.photoUrl);
+        if (oldPath && oldPath !== filePath) {
+          try {
+            await unlink(oldPath);
+          } catch {
+            // Nothing there — fine.
+          }
+        }
       }
       await pipeline(data.file, createWriteStream(filePath));
 

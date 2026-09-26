@@ -327,7 +327,9 @@ function EditDialog({ event, entry, onClose }: { event: EventInfo; entry: Entry;
         onSubmit={(e) => {
           e.preventDefault();
           // Send only what changed, so e.g. the weigh-in time isn't reset by an unrelated edit.
-          const PHOTO_FIELDS = new Set(["photoUrl", "photoConsent", "photoUploadedAt"]);
+          // photoUrl/photoUploadedAt are owned by the upload endpoint; the
+          // consent toggle is a normal form field and must round-trip via PATCH.
+          const PHOTO_FIELDS = new Set(["photoUrl", "photoUploadedAt"]);
           const changed = Object.fromEntries(
             Object.entries(draft).filter(([k, v]) => !PHOTO_FIELDS.has(k) && entry[k as keyof Entry] !== v),
           );
