@@ -1,4 +1,5 @@
 import Fastify, { type FastifyServerOptions } from "fastify";
+import multipart from "@fastify/multipart";
 import { eq } from "drizzle-orm";
 import type { Db } from "./db/client.js";
 import { events } from "./db/schema.js";
@@ -15,7 +16,7 @@ import { entryRoutes } from "./routes/entries.js";
 import { eventRoutes } from "./routes/events.js";
 import { groupingRoutes } from "./routes/grouping.js";
 
-export function buildApp(db: Db, options: FastifyServerOptions & { mailer?: Mailer; notifier?: Notifier } = {}) {
+export async function buildApp(db: Db, options: FastifyServerOptions & { mailer?: Mailer; notifier?: Notifier } = {}) {
   const { mailer: givenMailer, notifier: givenNotifier, ...fastifyOptions } = options;
   const app = Fastify({
     bodyLimit: 5 * 1024 * 1024,
@@ -25,6 +26,9 @@ export function buildApp(db: Db, options: FastifyServerOptions & { mailer?: Mail
     ...fastifyOptions,
   });
   registerErrorHandler(app);
+  // Photo uploads (and later event logos) come through @fastify/multipart.
+  // 5MB per file; the JSON body limit stays 5MB for non-upload endpoints.
+  await app.register(multipart, { limits: { fileSize: 5 * 1024 * 1024 } });
   // Every successful change to a tournament bumps its version so cached views
   // are rebuilt. Routes marked `config: { live: true }` (scoring taps, the match
   // clock) only bump the live version; `config: { readOnly: true }` bump nothing.

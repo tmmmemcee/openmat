@@ -29,6 +29,23 @@ export async function api<T>(path: string, options: { method?: string; body?: un
   return data as T;
 }
 
+/** Multipart upload (used for wrestler photos). Browser sets the Content-Type + boundary. */
+export async function uploadFile<T = unknown>(
+  path: string,
+  file: File,
+  options: { slug?: string; fieldName?: string } = {},
+): Promise<T> {
+  const headers: Record<string, string> = {};
+  const token = options.slug ? getToken(options.slug) : null;
+  if (token) headers.authorization = `Bearer ${token}`;
+  const form = new FormData();
+  form.append(options.fieldName ?? "file", file);
+  const res = await fetch(`/api${path}`, { method: "POST", headers, body: form });
+  const data = res.status === 204 ? null : await res.json().catch(() => null);
+  if (!res.ok) throw new ApiError(res.status, data?.error ?? `Request failed (${res.status})`);
+  return data as T;
+}
+
 // ---- Types returned by the API ----
 
 export type Gender = "boys" | "girls" | "mixed";
@@ -113,6 +130,10 @@ export interface Entry {
   status: "registered" | "weighed-in" | "scratched";
   contactEmail: string | null;
   notes: string;
+  /** Photo uploaded via the director/weigh-in screen. Display is consent-gated. */
+  photoUrl: string | null;
+  photoConsent: boolean;
+  photoUploadedAt: string | null;
   groupId: string | null;
   weighIn: WeighInCheck | null;
 }
@@ -201,6 +222,9 @@ export interface Wrestler {
   team: string;
   seed?: number | null;
   weight?: number | null;
+  /** Consent-gated photo. Server only sends photoUrl when photoConsent is true. */
+  photoUrl?: string | null;
+  photoConsent?: boolean;
 }
 
 export interface LiveDetails {

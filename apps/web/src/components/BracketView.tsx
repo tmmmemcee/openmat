@@ -10,6 +10,19 @@ export const wrestlerName = (map: WrestlerMap, id: string | null | undefined) =>
   return w ? `${w.firstName} ${w.lastName}` : "?";
 };
 
+/** Small avatar, shown only when the wrestler has consented to display. */
+function wrestlerAvatar(w: Wrestler | undefined, dim: string = "size-6") {
+  if (!w?.photoUrl || !w.photoConsent) return null;
+  return (
+    <img
+      src={w.photoUrl}
+      alt=""
+      className={`${dim} shrink-0 rounded-full object-cover ring-1 ring-slate-200`}
+      loading="lazy"
+    />
+  );
+}
+
 const formatLabel = (b: Bracket) =>
   b.format === "round-robin"
     ? "Round robin"
@@ -38,8 +51,9 @@ function Places({ bracket, wrestlers }: { bracket: Bracket; wrestlers: WrestlerM
       <h4 className="font-bold">Placements</h4>
       <ol className="mt-2 space-y-1 text-sm">
         {bracket.places.map((p) => (
-          <li key={`${p.place}-${p.entryId}`} className="flex gap-2">
-            <span className="w-8 font-bold">{ordinal(p.place)}</span>
+          <li key={`${p.place}-${p.entryId}`} className="flex items-center gap-2">
+            <span className="w-8 shrink-0 font-bold">{ordinal(p.place)}</span>
+            {wrestlerAvatar(wrestlers.get(p.entryId))}
             <span>
               {wrestlerName(wrestlers, p.entryId)} <span className="text-slate-500">{wrestlers.get(p.entryId)?.team}</span>
               {p.unresolvedTie && <Badge tone="amber">tie: director decides</Badge>}
@@ -60,10 +74,12 @@ export function BoutBox({ bout, wrestlers, highlight, compact }: { bout: Bout; w
   if (bout.status === "bye" && compact) return null;
   const line = (id: string | null, from: string | undefined, corner: "A" | "B") => {
     const won = bout.winnerEntryId && bout.winnerEntryId === id;
-    const team = id && id !== "BYE" ? wrestlers.get(id)?.team : undefined;
+    const w = id && id !== "BYE" ? wrestlers.get(id) : undefined;
+    const team = w?.team;
     return (
       <div className={cx("flex items-center gap-2 px-2.5 py-1.5", id && id === highlight && "bg-amber-100")}>
         <span className={cx("h-4 w-1 shrink-0 rounded-full", corner === "A" ? "bg-red-500" : "bg-emerald-500")} />
+        {wrestlerAvatar(w)}
         <span className={cx("min-w-0 flex-1 truncate text-sm", won ? "font-bold" : "text-slate-700", !id && "text-slate-400 italic")}>
           {id ? wrestlerName(wrestlers, id) : (from ?? "TBD")}
           {team && <span className="ml-1.5 text-xs font-normal text-slate-500">{team}</span>}
@@ -124,9 +140,14 @@ function RoundRobin({ bracket, wrestlers, highlight, print }: { bracket: Bracket
             {pool.map((id, i) => (
               <tr key={id} className={cx("border-t border-slate-100", id === highlight && "bg-amber-50")}>
                 <td className="p-2">
-                  <span className="mr-2 text-slate-400">{i + 1}</span>
-                  <span className="font-medium">{wrestlerName(wrestlers, id)}</span>
-                  <span className="ml-1.5 text-xs text-slate-500">{wrestlers.get(id)?.team}</span>
+                  <div className="flex items-center gap-2">
+                    {wrestlerAvatar(wrestlers.get(id))}
+                    <span>
+                      <span className="mr-2 text-slate-400">{i + 1}</span>
+                      <span className="font-medium">{wrestlerName(wrestlers, id)}</span>
+                      <span className="ml-1.5 text-xs text-slate-500">{wrestlers.get(id)?.team}</span>
+                    </span>
+                  </div>
                 </td>
                 {pool.map((other) => {
                   if (other === id) return <td key={other} className="bg-slate-100 p-2" />;

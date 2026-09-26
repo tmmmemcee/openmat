@@ -7,7 +7,7 @@ import { memoryNotifier } from "../src/services/notify.js";
 const { db, sql } = createDb();
 export const mailer = memoryMailer();
 export const notifier = memoryNotifier();
-export const app = buildApp(db, { mailer, notifier });
+export const app = await buildApp(db, { mailer, notifier });
 
 beforeEach(async () => {
   await sql`truncate events cascade`;
