@@ -279,6 +279,7 @@ export function eventRoutes(app: FastifyInstance, db: Db, mailer: Mailer): void 
       name: event.name,
       startDate: event.startDate,
       startTime: event.startTime,
+      timezone: event.timezone,
       location: event.location,
       city: event.city,
       state: event.state,

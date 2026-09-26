@@ -116,6 +116,17 @@ export default function Overview({ event }: { event: EventInfo }) {
               </span>
             </Row>
           </dl>
+          <div className="mt-3 border-t border-slate-100 pt-3">
+            <Link
+              to={`/new-event?clone=${event.slug}`}
+              className="inline-flex items-center rounded-lg bg-white px-2.5 py-1.5 text-sm font-semibold text-slate-800 ring-1 ring-slate-300 hover:bg-slate-50"
+            >
+              Clone as new event
+            </Link>
+            <p className="mt-1 text-xs text-slate-500">
+              Start a new event with the same divisions, rules, mat count and grouping settings.
+            </p>
+          </div>
         </Card>
         <Card>
           <h2 className="font-bold">Divisions</h2>
