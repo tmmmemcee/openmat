@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { type Entry, type EventInfo, api } from "../../api";
+import { type ChangeEvent, useMemo, useState } from "react";
+import { type Entry, type EventInfo, api, uploadFile } from "../../api";
 import { TEMPLATE_CSV, parseWrestlerCsv } from "../../lib/csv";
 import { fullName, lbs } from "../../lib/format";
 import { useEntries, useEventMutation } from "../../lib/hooks";
@@ -85,12 +85,22 @@ export default function Wrestlers({ event }: { event: EventInfo }) {
               {list.map((e) => (
                 <tr key={e.id} onClick={() => setEditing(e)} className="cursor-pointer hover:bg-slate-50">
                   <td className="px-4 py-2.5 font-medium">
-                    {fullName(e)}
-                    {(e.bumpAge > 0 || e.bumpWeight > 0) && (
-                      <span className="ml-2">
-                        <Badge tone="blue">moved up</Badge>
-                      </span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {e.photoUrl && e.photoConsent && (
+                        <img
+                          src={e.photoUrl}
+                          alt=""
+                          className="size-7 shrink-0 rounded-full object-cover ring-1 ring-slate-200"
+                          loading="lazy"
+                        />
+                      )}
+                      {fullName(e)}
+                      {(e.bumpAge > 0 || e.bumpWeight > 0) && (
+                        <span className="ml-1">
+                          <Badge tone="blue">moved up</Badge>
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-2.5 text-slate-600">{e.team}</td>
                   <td className="px-4 py-2.5 text-slate-600">{divisionName(e.divisionId)}</td>
@@ -253,12 +263,56 @@ function EditDialog({ event, entry, onClose }: { event: EventInfo; entry: Entry;
     bumpWeight: entry.bumpWeight,
     consent: entry.consent,
     notes: entry.notes,
+    photoUrl: entry.photoUrl,
+    photoConsent: entry.photoConsent,
+    photoUploadedAt: entry.photoUploadedAt,
   });
   const set = (patch: Partial<typeof draft>) => setDraft((d) => ({ ...d, ...patch }));
   const save = useEventMutation(event.slug, (body: object) =>
     api<Entry>(`/events/${event.slug}/entries/${entry.id}`, { method: "PATCH", slug: event.slug, body }),
   );
   const remove = useEventMutation(event.slug, () => api(`/events/${event.slug}/entries/${entry.id}`, { method: "DELETE", slug: event.slug }));
+
+  // F15: photo upload + remove. Consent is set on upload (human gate).
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const onUploadPhoto = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPhotoBusy(true);
+    setPhotoError(null);
+    try {
+      const res = await uploadFile<{ ok: boolean; photoUrl: string | null; photoConsent: boolean; photoUploadedAt: string | null }>(
+        `/events/${event.slug}/entries/${entry.id}/photo`,
+        file,
+        { slug: event.slug, fieldName: "file" },
+      );
+      setDraft((d) => ({
+        ...d,
+        photoUrl: res.photoUrl,
+        photoConsent: res.photoConsent,
+        photoUploadedAt: res.photoUploadedAt,
+      }));
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setPhotoBusy(false);
+      e.target.value = "";
+    }
+  };
+  const onRemovePhoto = async () => {
+    setPhotoBusy(true);
+    setPhotoError(null);
+    try {
+      await api(`/events/${event.slug}/entries/${entry.id}/photo`, { method: "DELETE", slug: event.slug });
+      setDraft((d) => ({ ...d, photoUrl: null, photoConsent: false, photoUploadedAt: null }));
+    } catch (err) {
+      setPhotoError(err instanceof Error ? err.message : "Remove failed");
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
+
   const division = event.divisions.find((d) => d.id === draft.divisionId);
   const youth = event.format === "madison";
   const olderDivisions = event.divisions.filter(
@@ -273,7 +327,12 @@ function EditDialog({ event, entry, onClose }: { event: EventInfo; entry: Entry;
         onSubmit={(e) => {
           e.preventDefault();
           // Send only what changed, so e.g. the weigh-in time isn't reset by an unrelated edit.
-          const changed = Object.fromEntries(Object.entries(draft).filter(([k, v]) => entry[k as keyof Entry] !== v));
+          // photoUrl/photoUploadedAt are owned by the upload endpoint; the
+          // consent toggle is a normal form field and must round-trip via PATCH.
+          const PHOTO_FIELDS = new Set(["photoUrl", "photoUploadedAt"]);
+          const changed = Object.fromEntries(
+            Object.entries(draft).filter(([k, v]) => !PHOTO_FIELDS.has(k) && entry[k as keyof Entry] !== v),
+          );
           if (Object.keys(changed).length === 0) return onClose();
           save.mutate(changed, { onSuccess: onClose });
         }}
@@ -336,6 +395,56 @@ function EditDialog({ event, entry, onClose }: { event: EventInfo; entry: Entry;
             value={draft.seed ?? ""}
             onChange={(e) => set({ seed: e.target.value ? Number(e.target.value) : null })}
           />
+        </Field>
+
+        {/* F15: photo (consent-gated). Stored at /uploads/entries/<id>.<ext>. */}
+        <Field
+          label="Photo"
+          hint="Optional. Shown on brackets and mat board only when the consent box is checked."
+        >
+          <div className="flex items-start gap-3">
+            {draft.photoUrl ? (
+              <img
+                src={draft.photoUrl}
+                alt=""
+                className="size-16 shrink-0 rounded-lg object-cover ring-1 ring-slate-200"
+              />
+            ) : (
+              <div className="flex size-16 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs text-slate-400 ring-1 ring-slate-200">
+                no photo
+              </div>
+            )}
+            <div className="flex flex-1 flex-col gap-2">
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="block w-full text-xs"
+                disabled={photoBusy}
+                onChange={onUploadPhoto}
+              />
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="size-4"
+                  checked={draft.photoConsent}
+                  disabled={!draft.photoUrl || photoBusy}
+                  onChange={(e) => set({ photoConsent: e.target.checked })}
+                />
+                Show on public results
+              </label>
+              {draft.photoUrl && (
+                <button
+                  type="button"
+                  className="text-left text-xs text-red-700 underline disabled:opacity-50"
+                  disabled={photoBusy}
+                  onClick={onRemovePhoto}
+                >
+                  Remove photo
+                </button>
+              )}
+            </div>
+          </div>
+          {photoError && <p className="mt-1 text-xs text-red-700">{photoError}</p>}
         </Field>
         {youth && (
           <div className="rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200">

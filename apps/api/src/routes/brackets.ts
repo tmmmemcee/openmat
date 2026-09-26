@@ -117,7 +117,7 @@ export function bracketRoutes(app: FastifyInstance, db: Db, scheduler: Notificat
       const ids = [...new Set(snap.views.flatMap((b) => b.draw.filter((x): x is string => !!x)))];
       const wrestlers = ids.length
         ? await db
-            .select({ id: entries.id, firstName: entries.firstName, lastName: entries.lastName, team: entries.team, seed: entries.seed, weight: entries.weight })
+            .select({ id: entries.id, firstName: entries.firstName, lastName: entries.lastName, team: entries.team, seed: entries.seed, weight: entries.weight, photoUrl: entries.photoUrl, photoConsent: entries.photoConsent })
             .from(entries)
             .where(inArray(entries.id, ids))
         : [];

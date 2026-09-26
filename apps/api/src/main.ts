@@ -6,10 +6,11 @@
  *   LOG_LEVEL, NODE_ENV   production turns off per-request logging
  */
 import cluster from "node:cluster";
+import { resolve } from "node:path";
 import { buildApp } from "./app.js";
 import { createDb } from "./db/client.js";
 import { cleanUpDemos } from "./routes/demo.js";
-import { serveWebApp } from "./static.js";
+import { serveUploads, serveWebApp } from "./static.js";
 
 const workers = Math.max(1, Number(process.env.WEB_CONCURRENCY ?? 1));
 
@@ -30,7 +31,8 @@ if (cluster.isPrimary && workers > 1) {
   sweepDemos((err) => console.error("demo cleanup failed", err));
 } else {
   const { db } = createDb();
-  const app = buildApp(db, { logger: { level: process.env.LOG_LEVEL ?? "info" } });
+  const app = await buildApp(db, { logger: { level: process.env.LOG_LEVEL ?? "info" } });
+  await serveUploads(app, db, process.env.UPLOADS_DIR ?? resolve(process.cwd(), "apps/api/uploads"));
   if (process.env.STATIC_DIR) await serveWebApp(app, process.env.STATIC_DIR);
   await app.listen({ port: Number(process.env.PORT ?? 3001), host: process.env.HOST ?? "127.0.0.1" });
   if (workers === 1) sweepDemos((err) => app.log.error(err, "demo cleanup failed"));

@@ -1,3 +1,7 @@
+import { createWriteStream } from "node:fs";
+import { mkdir, unlink } from "node:fs/promises";
+import path from "node:path";
+import { pipeline } from "node:stream/promises";
 import { type WeightClassSet, checkWeighIn, nativeDivision } from "@openmat/core";
 import { and, asc, eq, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
@@ -46,6 +50,7 @@ const entryPatch = z.object({
   bumpAge: z.number().int().min(0, "Wrestlers can only move up, never down").max(3).optional(),
   bumpWeight: z.number().int().min(0, "Wrestlers can only move up, never down").max(3).optional(),
   consent: z.boolean().optional(),
+  photoConsent: z.boolean().optional(),
   status: z.enum(["registered", "weighed-in", "scratched"]).optional(),
   contactEmail: z.string().trim().email().max(200).nullish().or(z.literal("").transform(() => null)),
   notes: z.string().trim().max(500).optional(),
@@ -140,6 +145,27 @@ function newEntryValues(event: Event, d: Division, input: EntryInput) {
     contactEmail: input.contactEmail ?? null,
     notes: input.notes ?? "",
   };
+}
+
+const PHOTO_MIMES: Record<string, string> = {
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+
+function uploadsDir(): string {
+  return process.env.UPLOADS_DIR ?? path.resolve(process.cwd(), "apps/api/uploads");
+}
+
+function entryPhotoPath(entryId: string, ext: string): string {
+  return path.join(uploadsDir(), "entries", `${entryId}.${ext}`);
+}
+
+function photoFileFromUrl(photoUrl: string): string | null {
+  // Tight enough to reject path traversal (".." or any separator) — photos are
+  // always written as <entryId>.<ext>, and entry ids are UUIDs.
+  const m = photoUrl.match(/^\/uploads\/entries\/([\w-]+\.(?:jpg|png|webp))$/);
+  return m ? path.join(uploadsDir(), "entries", m[1]!) : null;
 }
 
 export function entryRoutes(app: FastifyInstance, db: Db): void {
@@ -265,11 +291,102 @@ export function entryRoutes(app: FastifyInstance, db: Db): void {
   app.delete<{ Params: { slug: string; id: string } }>("/api/events/:slug/entries/:id", async (req) => {
     const event = await loadEvent(db, req.params.slug);
     await requireRole(db, req, event.id);
-    const deleted = await db
-      .delete(entries)
-      .where(and(eq(entries.id, req.params.id), eq(entries.eventId, event.id)))
-      .returning({ id: entries.id });
-    if (!deleted.length) throw new HttpError(404, "Wrestler not found.");
+    const [entry] = await db
+      .select({ id: entries.id, photoUrl: entries.photoUrl })
+      .from(entries)
+      .where(and(eq(entries.id, req.params.id), eq(entries.eventId, event.id)));
+    if (!entry) throw new HttpError(404, "Wrestler not found.");
+    if (entry.photoUrl) {
+      const filePath = photoFileFromUrl(entry.photoUrl);
+      if (filePath) {
+        try {
+          await unlink(filePath);
+        } catch {
+          // File already gone — fine.
+        }
+      }
+    }
+    await db.delete(entries).where(eq(entries.id, entry.id));
+    return { ok: true };
+  });
+
+  // F15: wrestler photos. Director or weigh-in staff can upload/delete;
+  // the photo consent flag (independent of the wrestle-up `consent`) controls
+  // whether the photo is rendered in public surfaces. Uploads replace any
+  // existing photo for the same entry (different extension included).
+
+  app.post<{ Params: { slug: string; id: string } }>(
+    "/api/events/:slug/entries/:id/photo",
+    async (req) => {
+      const event = await loadEvent(db, req.params.slug);
+      await requireRole(db, req, event.id, "director", "weigh-in");
+      const [entry] = await db
+        .select({ id: entries.id, photoUrl: entries.photoUrl })
+        .from(entries)
+        .where(and(eq(entries.id, req.params.id), eq(entries.eventId, event.id)));
+      if (!entry) throw new HttpError(404, "Wrestler not found.");
+
+      const data = await req.file();
+      if (!data) throw new HttpError(400, "No file uploaded.");
+      const ext = PHOTO_MIMES[data.mimetype];
+      if (!ext) throw new HttpError(415, "Photo must be a JPG, PNG, or WebP.");
+
+      const dir = path.join(uploadsDir(), "entries");
+      await mkdir(dir, { recursive: true });
+      const filePath = entryPhotoPath(entry.id, ext);
+      // Replace any existing photo first — the old file may have a different
+      // extension than the new upload, so derive its path from the stored
+      // photoUrl rather than the incoming one.
+      if (entry.photoUrl) {
+        const oldPath = photoFileFromUrl(entry.photoUrl);
+        if (oldPath && oldPath !== filePath) {
+          try {
+            await unlink(oldPath);
+          } catch {
+            // Nothing there — fine.
+          }
+        }
+      }
+      await pipeline(data.file, createWriteStream(filePath));
+
+      const photoUrl = `/uploads/entries/${entry.id}.${ext}`;
+      const [updated] = await db
+        .update(entries)
+        .set({ photoUrl, photoConsent: true, photoUploadedAt: new Date() })
+        .where(eq(entries.id, entry.id))
+        .returning();
+
+      return {
+        ok: true,
+        photoUrl: updated!.photoUrl,
+        photoConsent: updated!.photoConsent,
+        photoUploadedAt: updated!.photoUploadedAt?.toISOString() ?? null,
+      };
+    },
+  );
+
+  app.delete<{ Params: { slug: string; id: string } }>("/api/events/:slug/entries/:id/photo", async (req) => {
+    const event = await loadEvent(db, req.params.slug);
+    await requireRole(db, req, event.id, "director", "weigh-in");
+    const [entry] = await db
+      .select({ id: entries.id, photoUrl: entries.photoUrl })
+      .from(entries)
+      .where(and(eq(entries.id, req.params.id), eq(entries.eventId, event.id)));
+    if (!entry) throw new HttpError(404, "Wrestler not found.");
+    if (entry.photoUrl) {
+      const filePath = photoFileFromUrl(entry.photoUrl);
+      if (filePath) {
+        try {
+          await unlink(filePath);
+        } catch {
+          // File already gone — fine.
+        }
+      }
+    }
+    await db
+      .update(entries)
+      .set({ photoUrl: null, photoConsent: false, photoUploadedAt: null })
+      .where(eq(entries.id, entry.id));
     return { ok: true };
   });
 }

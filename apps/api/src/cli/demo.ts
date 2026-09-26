@@ -12,7 +12,7 @@ import { buildDemo } from "../services/demo.js";
 import { memoryNotifier } from "../services/notify.js";
 
 const { db, sql } = createDb();
-const app = buildApp(db, { mailer: memoryMailer(), notifier: memoryNotifier() });
+const app = await buildApp(db, { mailer: memoryMailer(), notifier: memoryNotifier() });
 const youth = await buildDemo(app, db, "youth", 2026);
 const hs = await buildDemo(app, db, "high-school", 2027);
 await app.notifications.settle();

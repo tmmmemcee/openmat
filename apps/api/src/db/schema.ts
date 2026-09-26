@@ -144,6 +144,11 @@ export const entries = pgTable(
     status: text("status").$type<EntryStatus>().notNull().default("registered"),
     contactEmail: text("contact_email"),
     notes: text("notes").notNull().default(""),
+    /** Optional photo of the wrestler. Only displayed when photoConsent is true. */
+    photoUrl: text("photo_url"),
+    /** Parent/athlete permission to display the photo. Independent of the wrestle-up `consent`. Default off. */
+    photoConsent: boolean("photo_consent").notNull().default(false),
+    photoUploadedAt: timestamp("photo_uploaded_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("entries_event_idx").on(t.eventId)],

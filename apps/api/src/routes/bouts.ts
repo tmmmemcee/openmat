@@ -108,7 +108,7 @@ export function boutRoutes(app: FastifyInstance, db: Db, scheduler: Notification
   async function people(event: Event) {
     const snap = await snapshot(db, event);
     return memo(snap, "people", () =>
-      db.select({ id: entries.id, firstName: entries.firstName, lastName: entries.lastName, team: entries.team }).from(entries).where(eq(entries.eventId, event.id)),
+      db.select({ id: entries.id, firstName: entries.firstName, lastName: entries.lastName, team: entries.team, photoUrl: entries.photoUrl, photoConsent: entries.photoConsent }).from(entries).where(eq(entries.eventId, event.id)),
     );
   }
 
@@ -147,7 +147,7 @@ export function boutRoutes(app: FastifyInstance, db: Db, scheduler: Notification
     const divs = await loadDivisions(db, event.id);
     const ids = [view.a, view.b].filter((x): x is string => !!x && x !== BYE);
     const wrestlers = ids.length
-      ? await db.select({ id: entries.id, firstName: entries.firstName, lastName: entries.lastName, team: entries.team, divisionId: entries.divisionId }).from(entries).where(inArray(entries.id, ids))
+      ? await db.select({ id: entries.id, firstName: entries.firstName, lastName: entries.lastName, team: entries.team, divisionId: entries.divisionId, photoUrl: entries.photoUrl, photoConsent: entries.photoConsent }).from(entries).where(inArray(entries.id, ids))
       : [];
     const division = divs.find((d) => d.id === wrestlers[0]?.divisionId);
     return {
