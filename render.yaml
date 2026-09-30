@@ -38,11 +38,19 @@ services:
 
   - type: web
     name: openmat-web
-    runtime: node
+    runtime: static
     plan: free
     region: oregon
     buildCommand: pnpm install --frozen-lockfile --prod=false && pnpm --filter @openmat/web build
     staticPublishPath: apps/web/dist
+    # SPA fallback: serve index.html for any path that doesn't match a real
+    # file, so react-router deep links work on direct hits and refresh. Render
+    # only applies the rewrite if no resource exists at the requested path,
+    # so /assets/* (hashed bundles, etc.) still serve directly.
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
     envVars:
       - key: NODE_VERSION
         value: "24"
