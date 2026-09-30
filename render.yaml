@@ -39,8 +39,9 @@ services:
   - type: web
     name: openmat-web
     runtime: static
-    plan: free
-    # Static sites serve from Render's global CDN — region is not a valid field.
+    # Static sites have no plan field — the schema's staticService definition
+    # only requires type/name/runtime. plan: free is invalid here (only valid
+    # on serverService via serverPlan enum). openmat-api keeps plan: free.
     buildCommand: pnpm install --frozen-lockfile --prod=false && pnpm --filter @openmat/web build
     staticPublishPath: apps/web/dist
     # SPA fallback: serve index.html for any path that doesn't match a real
