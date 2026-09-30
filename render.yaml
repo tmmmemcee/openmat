@@ -36,7 +36,7 @@ services:
           name: openmat-db
           property: connectionString
 
-  - type: static_site
+  - type: web
     name: openmat-web
     plan: free
     region: oregon
