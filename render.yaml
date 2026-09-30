@@ -40,7 +40,7 @@ services:
     name: openmat-web
     runtime: static
     plan: free
-    region: oregon
+    # Static sites serve from Render's global CDN — region is not a valid field.
     buildCommand: pnpm install --frozen-lockfile --prod=false && pnpm --filter @openmat/web build
     staticPublishPath: apps/web/dist
     # SPA fallback: serve index.html for any path that doesn't match a real
