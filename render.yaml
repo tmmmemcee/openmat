@@ -38,6 +38,7 @@ services:
 
   - type: web
     name: openmat-web
+    runtime: node
     plan: free
     region: oregon
     buildCommand: pnpm install --frozen-lockfile --prod=false && pnpm --filter @openmat/web build
