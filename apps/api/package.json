@@ -18,6 +18,7 @@
     "migrate:prod": "node dist/migrate.js"
   },
   "dependencies": {
+    "@fastify/cors": "^11.3.0",
     "@fastify/multipart": "^10.1.2",
     "@fastify/static": "^10.1.4",
     "@openmat/core": "workspace:*",

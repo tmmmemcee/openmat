@@ -1,10 +1,11 @@
 import Fastify, { type FastifyServerOptions } from "fastify";
+import cors from "@fastify/cors";
 import multipart from "@fastify/multipart";
 import { eq } from "drizzle-orm";
 import type { Db } from "./db/client.js";
 import { events } from "./db/schema.js";
 import { registerErrorHandler } from "./errors.js";
-import { PUBLIC_BASE_URL } from "./config.js";
+import { CORS_ORIGINS, PUBLIC_BASE_URL } from "./config.js";
 import { type Mailer, createMailer } from "./mailer.js";
 import { demoRoutes } from "./routes/demo.js";
 import { followRoutes } from "./routes/follows.js";
@@ -24,6 +25,15 @@ export async function buildApp(db: Db, options: FastifyServerOptions & { mailer?
     // Per-request log lines cost real time under load; keep errors only in production.
     disableRequestLogging: process.env.NODE_ENV === "production",
     ...fastifyOptions,
+  });
+  // The web app lives on a different origin than the API in production
+  // (openmat-web.onrender.com vs openmat-api.onrender.com); without this the
+  // browser blocks every API response. Registered before multipart so OPTIONS
+  // preflights short-circuit instead of walking past the body parser.
+  await app.register(cors, {
+    origin: CORS_ORIGINS,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Authorization", "Content-Type"],
   });
   registerErrorHandler(app);
   // Photo uploads (and later event logos) come through @fastify/multipart.

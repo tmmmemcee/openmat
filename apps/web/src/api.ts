@@ -1,5 +1,10 @@
 import { getToken } from "./token";
 
+// Empty string keeps the Vite dev proxy (apps/web/vite.config.ts) in play; in
+// production VITE_API_BASE_URL is set at build time to the API origin so the
+// browser talks directly to openmat-api.onrender.com.
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,
@@ -16,7 +21,7 @@ export async function api<T>(path: string, options: { method?: string; body?: un
   if (token) headers.authorization = `Bearer ${token}`;
   let res: Response;
   try {
-    res = await fetch(`/api${path}`, {
+    res = await fetch(`${API_BASE}/api${path}`, {
       method: options.method ?? "GET",
       headers,
       body: options.body === undefined ? undefined : JSON.stringify(options.body),
@@ -40,7 +45,7 @@ export async function uploadFile<T = unknown>(
   if (token) headers.authorization = `Bearer ${token}`;
   const form = new FormData();
   form.append(options.fieldName ?? "file", file);
-  const res = await fetch(`/api${path}`, { method: "POST", headers, body: form });
+  const res = await fetch(`${API_BASE}/api${path}`, { method: "POST", headers, body: form });
   const data = res.status === 204 ? null : await res.json().catch(() => null);
   if (!res.ok) throw new ApiError(res.status, data?.error ?? `Request failed (${res.status})`);
   return data as T;
