@@ -503,6 +503,8 @@ function PositionPanel({
 }) {
   const [chooser, setChooser] = useState<Corner | null>(null);
   const [deferred, setDeferred] = useState<Corner | null>(null);
+  // Folkstyle: deferring is only allowed for the period 2 choice; period 3 and tiebreakers can't be deferred.
+  const canDefer = period === 2 && !overtime;
   useEffect(() => {
     setChooser(null);
     setDeferred(null);
@@ -542,7 +544,7 @@ function PositionPanel({
               {deferred ? `${names[deferred]} deferred. ` : ""}
               {names[chooser]} chooses:
             </span>
-            {(["top", "bottom", "neutral", ...(deferred ? [] : ["defer"])] as PeriodChoice[]).map((choice) => (
+            {(["top", "bottom", "neutral", ...(deferred || !canDefer ? [] : ["defer"])] as PeriodChoice[]).map((choice) => (
               <Button key={choice} variant="secondary" onClick={() => choose(chooser, choice)}>
                 {cap(choice)}
               </Button>

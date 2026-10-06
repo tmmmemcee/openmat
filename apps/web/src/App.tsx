@@ -2,6 +2,7 @@ import { createBrowserRouter } from "react-router";
 import Brackets from "./pages/Brackets";
 import EventPublic from "./pages/EventPublic";
 import Follow from "./pages/Follow";
+import LiveMatch from "./pages/LiveMatch";
 import MatBoard from "./pages/MatBoard";
 import TableApp from "./pages/table/TableApp";
 import Home from "./pages/Home";
@@ -28,6 +29,7 @@ export const router = createBrowserRouter([
   { path: "/e/:slug/brackets", element: <Brackets /> },
   { path: "/e/:slug/mats", element: <MatBoard /> },
   { path: "/e/:slug/follow", element: <Follow /> },
+  { path: "/e/:slug/bouts/:boutId", element: <LiveMatch /> },
   { path: "/e/:slug/teams", element: <TeamScores /> },
   { path: "/e/:slug/print/brackets", element: <PrintBrackets /> },
   { path: "/e/:slug/print/bouts", element: <BoutSheets /> },

@@ -25,7 +25,7 @@ export default function MatBoard() {
   const board = (
     <div className={cx("grid gap-4", tv ? "grid-cols-2 xl:grid-cols-4" : "sm:grid-cols-2 lg:grid-cols-3")}>
       {results.map((r, i) => (
-        <MatColumn key={i} mat={i + 1} data={r.data} tv={tv} query={q} periods={Math.max(0, ...event.data.divisions.map((d) => d.periodsSec.length))} />
+        <MatColumn key={i} mat={i + 1} data={r.data} tv={tv} query={q} periods={Math.max(0, ...event.data.divisions.map((d) => d.periodsSec.length))} slug={slug} />
       ))}
     </div>
   );
@@ -73,7 +73,7 @@ export default function MatBoard() {
   );
 }
 
-function MatColumn({ mat, data, tv, query, periods }: { mat: number; data?: MatQueue; tv: boolean; query: string; periods: number }) {
+function MatColumn({ mat, data, tv, query, periods, slug }: { mat: number; data?: MatQueue; tv: boolean; query: string; periods: number; slug?: string }) {
   const names = new Map((data?.wrestlers ?? []).map((w) => [w.id, w]));
   const items = (data?.queue ?? []).slice(0, tv ? 3 : 5);
   const who = (id: string | null, from?: string) => {
@@ -133,7 +133,14 @@ function MatColumn({ mat, data, tv, query, periods }: { mat: number; data?: MatQ
                   );
                 })}
                 {q.live?.position === "neutral" && <div className={cx("mt-0.5 text-[11px]", tv ? "text-slate-400" : "text-slate-500")}>Neutral</div>}
-                <div className={cx("mt-1 truncate", tv ? "text-sm text-slate-400" : "text-xs text-slate-400")}>{q.bracketName}</div>
+                <div className={cx("mt-1 flex items-center justify-between gap-2", tv ? "text-sm text-slate-400" : "text-xs text-slate-400")}>
+                  <span className="truncate">{q.bracketName}</span>
+                  {!tv && q.position === "wrestling" && slug && (
+                    <Link to={`/e/${slug}/bouts/${q.bout.id}`} className="shrink-0 font-bold text-brand-700">
+                      Watch live →
+                    </Link>
+                  )}
+                </div>
               </li>
             );
           })}

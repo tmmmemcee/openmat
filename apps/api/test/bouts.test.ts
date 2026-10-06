@@ -177,3 +177,43 @@ describe("live details for the mat board", () => {
     expect((await s.post(`/bouts/${semi.id}/clock`, s.tableAuth(other), { period: 1, remainingSec: 10, running: false })).statusCode).toBe(403);
   });
 });
+
+describe("live match view data", () => {
+  it("gives the public a play-by-play with the running score, without undone entries or who entered them", async () => {
+    const s = await setup();
+    const semi = await s.bout("W1-1");
+    const t = s.tableAuth(semi.mat);
+    const td = ev({ type: "score", corner: "A", action: "T3", period: 1, matchTimeSec: 20 });
+    const wrongTd = ev({ type: "score", corner: "B", action: "T3", period: 1, matchTimeSec: 25 });
+    await s.post(`/bouts/${semi.id}/events`, t, {
+      events: [
+        td,
+        wrongTd,
+        ev({ type: "void", target: wrongTd.id }),
+        ev({ type: "penalty", corner: "B", kind: "stalling", period: 1, matchTimeSec: 40 }),
+        ev({ type: "score", corner: "B", action: "E1", period: 1, matchTimeSec: 60 }),
+        ev({ type: "position", position: "B-top", chooser: "B", choice: "top", period: 2, matchTimeSec: 120 }),
+      ],
+    });
+    await s.post(`/bouts/${semi.id}/clock`, t, { period: 2, remainingSec: 110, running: true });
+    const pub = (await app.inject({ url: `/api/events/${s.slug}/bouts/${semi.id}` })).json();
+    expect(pub.plays.map((p: { kind: string; label: string; score: { A: number; B: number } }) => `${p.kind}:${p.label}:${p.score.A}-${p.score.B}`)).toEqual([
+      "score:Takedown:3-0",
+      "warning:Stalling warning:3-0",
+      "score:Escape:3-1",
+      "choice:chose top:3-1",
+    ]);
+    expect(JSON.stringify(pub.plays)).not.toContain("table:");
+    expect(pub.live).toMatchObject({ score: { A: 3, B: 1 }, position: "B-top", clock: { period: 2, remainingSec: 110, running: true } });
+    expect(pub.events).toBeUndefined();
+  });
+
+  it("lists every bout in progress on /live", async () => {
+    const s = await setup(8);
+    const first = (await app.inject({ url: `/api/events/${s.slug}/mats` })).json().mats[0].queue[0].bout;
+    await s.post(`/bouts/${first.id}/events`, s.tableAuth(1), { events: [ev({ type: "score", corner: "B", action: "T3", period: 1 })] });
+    const live = (await app.inject({ url: `/api/events/${s.slug}/live` })).json();
+    expect(Object.keys(live.bouts)).toEqual([first.id]);
+    expect(live.bouts[first.id]).toMatchObject({ score: { A: 0, B: 3 }, position: "B-top" });
+  });
+});

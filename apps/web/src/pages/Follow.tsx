@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router";
 import { api } from "../api";
 import { disableAlerts, enableAlerts, follow, isIOS, isStandalone, pushSubscription, pushSupported, unfollow, useFollowing } from "../lib/follow";
+import { LiveContext, LiveLine, useBoutLive, useLiveMap } from "../components/Live";
 import { useEvent } from "../lib/hooks";
 import { Badge, Button, Card, Dialog, ErrorBox, Field, Header, Input, Notice, Page, Spinner, cx } from "../ui";
 
@@ -20,7 +21,7 @@ interface Status {
   team: string;
   scratched: boolean;
   bracket: { id: string; name: string } | null;
-  next: { boutNumber: string | null; mat: number | null; status: string; position: string | null; estimatedStart: string | null; opponent: string } | null;
+  next: { id: string; boutNumber: string | null; mat: number | null; status: string; position: string | null; estimatedStart: string | null; opponent: string } | null;
   results: { boutNumber: string | null; won: boolean; summary: string; opponent: string }[];
   place: number | null;
 }
@@ -47,6 +48,8 @@ export default function Follow() {
     refetchInterval: 10_000,
   });
   const change = useMutation({ mutationFn: (fn: () => Promise<void>) => fn() });
+  // Live scores only matter while someone followed is wrestling.
+  const live = useLiveMap(slug, (status.data ?? []).some((x) => x.next?.status === "wrestling"));
 
   if (event.isLoading) return <Spinner />;
   if (!event.data) return <ErrorBox error={event.error} />;
@@ -142,11 +145,13 @@ export default function Follow() {
         {ids.length === 0 ? (
           <Notice tone="gray">Search above and tap Follow. We'll show where each wrestler is up next, right here.</Notice>
         ) : (
-          <ul className="space-y-3">
-            {(status.data ?? []).map((s) => (
-              <StatusCard key={s.id} s={s} slug={slug} onUnfollow={following.wrestlers.includes(s.id) ? () => change.mutate(() => unfollow(slug, { wrestler: s.id })) : undefined} />
-            ))}
-          </ul>
+          <LiveContext.Provider value={{ slug, live: live.data, periods: Math.max(0, ...event.data.divisions.map((d) => d.periodsSec.length)) }}>
+            <ul className="space-y-3">
+              {(status.data ?? []).map((s) => (
+                <StatusCard key={s.id} s={s} slug={slug} onUnfollow={following.wrestlers.includes(s.id) ? () => change.mutate(() => unfollow(slug, { wrestler: s.id })) : undefined} />
+              ))}
+            </ul>
+          </LiveContext.Provider>
         )}
       </Page>
       <AlertsDialog slug={slug} open={alertsOpen} onClose={() => setAlertsOpen(false)} />
@@ -159,6 +164,26 @@ function FollowButton({ on, onToggle }: { on: boolean; onToggle: () => void }) {
     <Button size="sm" variant={on ? "secondary" : "primary"} onClick={onToggle}>
       {on ? "Following ✓" : "Follow"}
     </Button>
+  );
+}
+
+/** Score, position and clock for a followed wrestler's bout in progress, with a link to watch it live. */
+function LiveStatus({ boutId, slug }: { boutId: string; slug: string }) {
+  const { live, serverNow, periods } = useBoutLive(boutId);
+  return (
+    <div className="mt-1 flex w-full flex-wrap items-center gap-3 rounded-lg bg-slate-50 px-3 py-2">
+      {live && serverNow && (
+        <>
+          <span className="text-lg font-black tabular-nums">
+            <span className="text-red-600">{live.score.A}</span> – <span className="text-emerald-700">{live.score.B}</span>
+          </span>
+          <LiveLine live={live} serverNow={serverNow} periods={periods} className="text-sm text-slate-700" />
+        </>
+      )}
+      <Link to={`/e/${slug}/bouts/${boutId}`} className="ml-auto text-sm font-bold text-brand-700">
+        Watch live →
+      </Link>
+    </div>
   );
 }
 
@@ -200,6 +225,7 @@ function StatusCard({ s, slug, onUnfollow }: { s: Status; slug: string; onUnfoll
           </span>
           <span className="text-sm text-slate-600">vs {n.opponent}</span>
           {n.estimatedStart && n.position !== "wrestling" && <span className="text-sm text-slate-500">· ~{time(n.estimatedStart)}</span>}
+          {n.status === "wrestling" && <LiveStatus boutId={n.id} slug={slug} />}
         </div>
       ) : s.place ? (
         <p className="mt-2">

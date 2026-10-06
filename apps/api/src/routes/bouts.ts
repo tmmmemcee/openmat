@@ -1,4 +1,4 @@
-import { RULESETS, type WinType, boutState, finalizeBout, manualOutcome } from "@openmat/core";
+import { type BoutEvent, type BoutState, type Corner, RULESETS, type WinType, boutState, finalizeBout, manualOutcome } from "@openmat/core";
 import { and, eq, inArray } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
@@ -150,6 +150,8 @@ export function boutRoutes(app: FastifyInstance, db: Db, scheduler: Notification
       ? await db.select({ id: entries.id, firstName: entries.firstName, lastName: entries.lastName, team: entries.team, divisionId: entries.divisionId, photoUrl: entries.photoUrl, photoConsent: entries.photoConsent }).from(entries).where(inArray(entries.id, ids))
       : [];
     const division = divs.find((d) => d.id === wrestlers[0]?.divisionId);
+    const state = boutState(ruleset, events);
+    const live = view.status === "wrestling" ? (await liveDetails(db, await snapshot(db, event), event)).get(view.id) : undefined;
     return {
       bout: view,
       bracketName,
@@ -157,8 +159,19 @@ export function boutRoutes(app: FastifyInstance, db: Db, scheduler: Notification
       periodsSec: division?.periodsSec ?? ruleset.periodsSec,
       rulesetId: ruleset.id,
       ...(access ? { events: log.map((e) => ({ ...e.data, id: e.id, by: e.by, createdAt: e.createdAt })) } : {}),
-      state: boutState(ruleset, events),
+      state,
+      plays: playByPlay(ruleset, events, state),
+      ...(live ? { live } : {}),
+      serverNow: new Date().toISOString(),
     };
+  });
+
+  /** Live score, position and clock for every bout in progress (bracket and parent views overlay this). */
+  app.get<{ Params: { slug: string } }>("/api/events/:slug/live", async (req, reply) => {
+    const event = await loadEvent(db, req.params.slug);
+    if (publicCache(req, reply, `l${event.version}.${event.liveVersion}`)) return reply;
+    const live = await liveDetails(db, await snapshot(db, event), event);
+    return { bouts: Object.fromEntries(live), serverNow: new Date().toISOString() };
   });
 
   /** The table reports its match clock (start, stop, new period, corrections) so live views can show it. */
@@ -329,4 +342,42 @@ export function boutRoutes(app: FastifyInstance, db: Db, scheduler: Notification
       .where(and(eq(bouts.id, view.id), eq(bouts.eventId, event.id)));
     return { ok: true };
   });
+}
+
+export interface Play {
+  id: string;
+  kind: "score" | "warning" | "choice" | "position";
+  /** Who it's about: who got the points, who was warned, who chose. */
+  corner: Corner | null;
+  label: string;
+  points: number;
+  period?: number;
+  matchTimeSec?: number;
+  /** Score after this play. */
+  score: Record<Corner, number>;
+}
+
+/** Public play-by-play: what happened, in order, without who entered it. Undone entries are left out. */
+function playByPlay(ruleset: ReturnType<typeof rulesetFor>, events: BoutEvent[], state: BoutState): Play[] {
+  const lines = new Map(state.lines.map((l) => [l.eventId, l]));
+  const warnings = new Map(state.warnings.map((w) => [w.eventId, w]));
+  const voided = new Set(events.filter((e) => e.type === "void").map((e) => (e as { target: string }).target));
+  const score: Record<Corner, number> = { A: 0, B: 0 };
+  const plays: Play[] = [];
+  for (const e of events) {
+    if (e.type === "void" || voided.has(e.id)) continue;
+    const at = { period: e.period, matchTimeSec: e.matchTimeSec };
+    const line = lines.get(e.id);
+    if (line) {
+      score[line.corner] += line.points;
+      plays.push({ id: e.id, kind: "score", corner: line.corner, label: line.label, points: line.points, ...at, score: { ...score } });
+    } else if (warnings.has(e.id)) {
+      const w = warnings.get(e.id)!;
+      const label = ruleset.penalties.find((p) => p.kind === w.kind)?.label ?? w.kind;
+      plays.push({ id: e.id, kind: "warning", corner: w.corner, label: `${label} warning`, points: 0, ...at, score: { ...score } });
+    } else if (e.type === "position" && e.chooser && e.choice) {
+      plays.push({ id: e.id, kind: "choice", corner: e.chooser, label: `chose ${e.choice}`, points: 0, ...at, score: { ...score } });
+    }
+  }
+  return plays;
 }

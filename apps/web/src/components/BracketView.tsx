@@ -1,4 +1,6 @@
+import { Link } from "react-router";
 import type { Bout, Bracket, Wrestler } from "../api";
+import { LiveLine, useBoutLive } from "./Live";
 import { Badge, cx } from "../ui";
 
 export type WrestlerMap = Map<string, Wrestler>;
@@ -71,6 +73,7 @@ function ordinal(n: number) {
 
 /** One bout box: bout number and mat, both wrestlers, result. */
 export function BoutBox({ bout, wrestlers, highlight, compact }: { bout: Bout; wrestlers: WrestlerMap; highlight?: string | null; compact?: boolean }) {
+  const { live, serverNow, slug, periods } = useBoutLive(bout.id);
   if (bout.status === "bye" && compact) return null;
   const line = (id: string | null, from: string | undefined, corner: "A" | "B") => {
     const won = bout.winnerEntryId && bout.winnerEntryId === id;
@@ -84,13 +87,19 @@ export function BoutBox({ bout, wrestlers, highlight, compact }: { bout: Bout; w
           {id ? wrestlerName(wrestlers, id) : (from ?? "TBD")}
           {team && <span className="ml-1.5 text-xs font-normal text-slate-500">{team}</span>}
         </span>
-        {bout.result && (bout.result.score.A > 0 || bout.result.score.B > 0) && (
-          <span className="text-sm font-semibold tabular-nums">{bout.result.score[corner]}</span>
+        {live && bout.status === "wrestling" ? (
+          <span className="flex items-center gap-1.5">
+            {live.position === `${corner}-top` && <span className="rounded bg-slate-200 px-1 text-[9px] font-bold text-slate-700 uppercase">Top</span>}
+            <span className="text-sm font-black text-brand-800 tabular-nums">{live.score[corner]}</span>
+          </span>
+        ) : (
+          bout.result &&
+          (bout.result.score.A > 0 || bout.result.score.B > 0) && <span className="text-sm font-semibold tabular-nums">{bout.result.score[corner]}</span>
         )}
       </div>
     );
   };
-  return (
+  const box = (
     <div className={cx("w-full overflow-hidden rounded-lg bg-white ring-1", bout.status === "wrestling" ? "ring-2 ring-brand-600" : "ring-slate-200", bout.conflict && "ring-2 ring-red-400")}>
       <div className="flex items-center justify-between gap-2 bg-slate-50 px-2.5 py-1 text-[11px] font-medium text-slate-500">
         <span>
@@ -98,7 +107,7 @@ export function BoutBox({ bout, wrestlers, highlight, compact }: { bout: Bout; w
           {bout.mat ? ` · Mat ${bout.mat}` : ""}
         </span>
         <span>
-          {bout.status === "wrestling" && <span className="font-bold text-brand-700">LIVE</span>}
+          {bout.status === "wrestling" && (live && serverNow ? <LiveLine live={live} serverNow={serverNow} periods={periods} className="font-semibold text-slate-700" /> : <span className="font-bold text-brand-700">LIVE</span>)}
           {bout.result && bout.result.summary}
           {bout.status === "bye" && "Bye"}
           {bout.forPlace && !bout.result ? `${ordinal(bout.forPlace)} place` : ""}
@@ -111,6 +120,15 @@ export function BoutBox({ bout, wrestlers, highlight, compact }: { bout: Bout; w
       {bout.conflict && <p className="bg-red-50 px-2.5 py-1 text-xs text-red-800">{bout.conflict}</p>}
     </div>
   );
+  // On public pages (inside a LiveContext), live and finished bouts open the live match page.
+  if (slug && (bout.status === "wrestling" || bout.status === "done")) {
+    return (
+      <Link to={`/e/${slug}/bouts/${bout.id}`} className="block rounded-lg transition hover:shadow-md focus-visible:ring-2 focus-visible:ring-brand-600 focus-visible:outline-none">
+        {box}
+      </Link>
+    );
+  }
+  return box;
 }
 
 function RoundRobin({ bracket, wrestlers, highlight, print }: { bracket: Bracket; wrestlers: WrestlerMap; highlight?: string | null; print?: boolean }) {
