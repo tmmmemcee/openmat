@@ -28,6 +28,8 @@ describe("caching", () => {
     const s = await setup();
     const first = await app.inject({ url: `/api/events/${s.slug}/brackets` });
     expect(first.headers["cache-control"]).toContain("public");
+    // A stored anonymous copy must never be reused for a staff request to the same URL.
+    expect(first.headers.vary).toContain("authorization");
     const etag = first.headers.etag as string;
     expect(etag).toBeTruthy();
     const again = await app.inject({ url: `/api/events/${s.slug}/brackets`, headers: { "if-none-match": etag } });

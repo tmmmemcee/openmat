@@ -107,3 +107,32 @@ describe("groupWrestlers", () => {
     expect(groups.reduce((n, g) => n + g.members.length, 0)).toBe(1000);
   });
 });
+
+describe("skill-aware grouping", () => {
+  it("moves a split to keep similar skill together when weights allow either split", () => {
+    // By weight alone, 60/60.2/60.4 + 61.5/63 is slightly tighter. The three
+    // heavier kids are all experienced, so with skill the split moves by one.
+    const k = (w: number, skill: number) => kid(w, "10U", { skill });
+    const entries = [k(60, 900), k(60.2, 900), k(60.4, 1400), k(61.5, 1400), k(63, 1400)];
+    const opts = { targetSize: 2, minSize: 2, maxSize: 3 };
+    const byWeight = groupWrestlers(entries.map(({ skill: _s, ...e }) => e), USAW_KIDS_DIVISIONS, opts);
+    const bySkill = groupWrestlers(entries, USAW_KIDS_DIVISIONS, opts);
+    expect(byWeight.groups.map((g) => g.members.map((m) => m.weight))).toEqual([
+      [60, 60.2, 60.4],
+      [61.5, 63],
+    ]);
+    expect(bySkill.groups.map((g) => g.members.map((m) => m.weight))).toEqual([
+      [60, 60.2],
+      [60.4, 61.5, 63],
+    ]);
+  });
+
+  it("never breaks the weight rules to match skill", () => {
+    const entries = [kid(50, "10U", { skill: 1400 }), kid(51, "10U", { skill: 900 }), kid(70, "10U", { skill: 1400 }), kid(71, "10U", { skill: 900 })];
+    const { groups } = groupWrestlers(entries, USAW_KIDS_DIVISIONS, { targetSize: 2, minSize: 2, maxSize: 2 });
+    expect(groups.map((g) => g.members.map((m) => m.weight))).toEqual([
+      [50, 51],
+      [70, 71],
+    ]);
+  });
+});

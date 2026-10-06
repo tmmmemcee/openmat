@@ -130,6 +130,10 @@ function RosterForm({ event }: { event: EventInfo }) {
         <Link to={`/e/${event.slug}`} className="text-sm font-semibold text-brand-700">
           ← Tournament page
         </Link>
+        <Notice>
+          Coming back every season? <Link to="/teams/new" className="font-semibold underline">Save your team</Link> once, keep your kids' latest
+          weights there, and register them for any tournament in a few taps.
+        </Notice>
         {done.length > 0 && (
           <Notice tone="green">
             <strong>{done.length} registered:</strong> {done.join(", ")}.

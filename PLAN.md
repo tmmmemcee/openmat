@@ -333,6 +333,9 @@ Each feature lists **what it does**, **how we build it**, and **open questions**
 - [x] Automatic tech falls: clock stops and the table is asked to end the match (or keep wrestling for a near fall in progress)
 - [x] Live mat board: score, position and a running match clock for bouts in progress (the table shares its clock)
 - [x] Scaling quick wins: per-tournament snapshot cache (versioned; live taps don't rebuild brackets), ETag/304 and short public caching for CDNs, single all-mats request, alerts only on real mat changes, production bundle with worker processes and optional static hosting. Measured on this machine: one worker went from ~220 to ~1,150–2,250 req/s on the heaviest reads; a mat-board viewer now costs one request per 3s instead of four
+- [x] Saved team rosters: a coach saves the team once (private coach link, emailed; no accounts), keeps names, birth years, latest weights (weigh-ins update them), experience level and years wrestling, and registers chosen kids into any open event
+- [x] Private matchmaking ratings: coach-set level seeds an Elo-style rating that results then move (bigger wins count a bit more; forfeits/defaults don't count; corrections recompute, resets undo). Only the coach and the event's director see it; Madison grouping uses it as a tie-breaker inside the weight/age rules
+- [ ] Youth scratch duals and tri-meets: pair kids across teams from roster weights, director sets matches per kid, extra weight/age allowance when experience matches
 - [ ] Scaling next: alerts in a job queue (diff-based, parallel sends), Redis for rate limits/pubsub, PgBouncer, demo from a template, load test at Saturday scale, monitoring
 - [x] Hosting on Render (web + API + Postgres); live demo fixed in PR #10
 - [x] Live match view (`/e/:slug/bouts/:id`): score, position diagram, period clock, play-by-play; live score/position/clock in brackets and My wrestlers; mat board "Watch live"; bout alerts link to it

@@ -1,17 +1,19 @@
-import { type GroupingEntry, evaluateGroup, groupWrestlers } from "@openmat/core";
+import { DEFAULT_GROUPING_OPTIONS, type GroupingEntry, evaluateGroup, groupWrestlers } from "@openmat/core";
 import { and, eq, inArray, isNotNull, ne } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { requireRole } from "../auth.js";
 import type { Db } from "../db/client.js";
-import { divisions, entries, groupMembers, groups } from "../db/schema.js";
+import { divisions, entries, groupMembers, groups, wrestlers } from "../db/schema.js";
 import { HttpError } from "../errors.js";
 import { loadDivisions, loadEvent } from "./events.js";
 
 type Division = typeof divisions.$inferSelect;
 type Entry = typeof entries.$inferSelect;
 
-function toGroupingEntry(e: Entry, native: Division): GroupingEntry {
+type GroupableEntry = Entry & { skill?: number };
+
+function toGroupingEntry(e: GroupableEntry, native: Division): GroupingEntry {
   return {
     id: e.id,
     name: `${e.firstName} ${e.lastName}`,
@@ -20,15 +22,19 @@ function toGroupingEntry(e: Entry, native: Division): GroupingEntry {
     team: e.team,
     bumpAge: e.bumpAge,
     bumpWeight: e.bumpWeight,
+    // Private rating from the team's saved roster, when the entry came from one.
+    ...(e.skill !== undefined ? { skill: e.skill } : {}),
   };
 }
 
 /** Everyone who should be in a group: weighed in and not scratched. */
-async function groupable(db: Db, eventId: string): Promise<Entry[]> {
-  return db
-    .select()
+async function groupable(db: Db, eventId: string): Promise<GroupableEntry[]> {
+  const rows = await db
+    .select({ entry: entries, rating: wrestlers.rating })
     .from(entries)
+    .leftJoin(wrestlers, eq(wrestlers.id, entries.wrestlerId))
     .where(and(eq(entries.eventId, eventId), isNotNull(entries.weight), ne(entries.status, "scratched")));
+  return rows.map((r) => ({ ...r.entry, ...(r.rating !== null ? { skill: r.rating } : {}) }));
 }
 
 async function loadGroups(db: Db, eventId: string) {
@@ -79,7 +85,7 @@ export function groupingRoutes(app: FastifyInstance, db: Db): void {
             division.name,
             g.number,
             members.map((m) => toGroupingEntry(m, divById.get(m.divisionId)!)),
-            event.settings.grouping,
+            { ...DEFAULT_GROUPING_OPTIONS, ...event.settings.grouping },
             ageBumps,
           );
           return {
@@ -135,7 +141,7 @@ export function groupingRoutes(app: FastifyInstance, db: Db): void {
           result = groupWrestlers(
             input,
             genderDivs.map((d) => ({ name: d.ageDivision!, maxAge: d.maxAge! })),
-            event.settings.grouping,
+            { ...DEFAULT_GROUPING_OPTIONS, ...event.settings.grouping },
           );
         } catch (err) {
           if (err instanceof RangeError) throw new HttpError(400, err.message);

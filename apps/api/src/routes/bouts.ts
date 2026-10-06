@@ -8,6 +8,7 @@ import { boutEvents, bouts, entries } from "../db/schema.js";
 import { HttpError } from "../errors.js";
 import { publicCache } from "../httpCache.js";
 import type { NotificationScheduler } from "../services/notify.js";
+import { applyBoutRating, revertBoutRating } from "../services/ratings.js";
 import { bumpVersion, liveDetails, memo, queues, snapshot } from "../services/snapshot.js";
 import { type BoutView, BYE, loadBoutEvents, loadBracketViews, toEngineEvents } from "../services/tournament.js";
 import { loadDivisions, loadEvent } from "./events.js";
@@ -283,6 +284,7 @@ export function boutRoutes(app: FastifyInstance, db: Db, scheduler: Notification
       })
       .where(eq(bouts.id, view.id));
 
+    await applyBoutRating(db, view.id);
     const after = await loadBracketViews(db, event.id);
     const conflicts = after.flatMap((x) => x.bouts).filter((x) => x.conflict);
     return { result: o, winnerEntryId, conflicts: conflicts.map((c) => ({ id: c.id, boutNumber: c.boutNumber, message: c.conflict })) };
@@ -340,6 +342,7 @@ export function boutRoutes(app: FastifyInstance, db: Db, scheduler: Notification
         ...(keepRoundRobinPair ? {} : { entryA: null, entryB: null }),
       })
       .where(and(eq(bouts.id, view.id), eq(bouts.eventId, event.id)));
+    await revertBoutRating(db, view.id);
     return { ok: true };
   });
 }

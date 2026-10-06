@@ -9,6 +9,9 @@ import type { FastifyReply, FastifyRequest } from "fastify";
  * Returns true when a 304 was sent and the handler should stop.
  */
 export function publicCache(req: FastifyRequest, reply: FastifyReply, version: string, maxAgeSec = 2): boolean {
+  // Staff get a different body from the same URL, so caches must not hand
+  // a stored anonymous copy to a request that carries a token.
+  reply.header("vary", "authorization");
   if (req.headers.authorization) {
     reply.header("cache-control", "private, no-store");
     return false;

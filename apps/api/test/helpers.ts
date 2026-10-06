@@ -17,7 +17,7 @@ export const app = await buildApp(db, { mailer, notifier });
 await serveUploads(app, db, uploadsDir);
 
 beforeEach(async () => {
-  await sql`truncate events cascade`;
+  await sql`truncate events, teams cascade`;
   await app.notifications.settle();
   mailer.sent.length = 0;
   notifier.sent.length = 0;

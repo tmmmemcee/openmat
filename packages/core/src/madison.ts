@@ -31,6 +31,8 @@ export interface GroupingEntry {
   bumpAge?: number;
   /** Move up this many weight groups within the division (0 = none). */
   bumpWeight?: number;
+  /** Private skill rating (see ratings.ts). When present, groups prefer wrestlers of similar skill. */
+  skill?: number;
 }
 
 export interface GroupingOptions {
@@ -47,6 +49,11 @@ export interface GroupingOptions {
    * tighter. Useful for the lightest kids (10% of 45 lb is only 4.5 lb).
    */
   spreadFloor: number;
+  /**
+   * How much to care about skill gaps inside a group, in cost per 100 rating
+   * points of spread. Weight rules always come first; 0 turns it off.
+   */
+  skillWeight: number;
 }
 
 export const DEFAULT_GROUPING_OPTIONS: GroupingOptions = {
@@ -55,6 +62,7 @@ export const DEFAULT_GROUPING_OPTIONS: GroupingOptions = {
   maxSize: 5,
   maxSpreadPct: 10,
   spreadFloor: 0,
+  skillWeight: 2,
 };
 
 export type GroupFlag =
@@ -124,6 +132,13 @@ function groupCost(sortedWeights: number[], totalInDivision: number, opts: Group
 }
 
 /** Optimal split of weight-sorted entries into consecutive groups. */
+/** Penalty for mixing very different skill levels in one group (only when skills are known). */
+function skillCost(members: GroupingEntry[], opts: GroupingOptions): number {
+  const skills = members.map((m) => m.skill).filter((x): x is number => x !== undefined);
+  if (skills.length < 2 || !opts.skillWeight) return 0;
+  return (opts.skillWeight * (Math.max(...skills) - Math.min(...skills))) / 100;
+}
+
 function partition(sorted: GroupingEntry[], opts: GroupingOptions): GroupingEntry[][] {
   const n = sorted.length;
   if (n === 0) return [];
@@ -134,7 +149,7 @@ function partition(sorted: GroupingEntry[], opts: GroupingOptions): GroupingEntr
   for (let end = 1; end <= n; end++) {
     for (let size = 1; size <= opts.maxSize && size <= end; size++) {
       const start = end - size;
-      const cost = best[start]! + groupCost(weights.slice(start, end), n, opts);
+      const cost = best[start]! + groupCost(weights.slice(start, end), n, opts) + skillCost(sorted.slice(start, end), opts);
       if (cost < best[end]!) {
         best[end] = cost;
         cut[end] = start;
