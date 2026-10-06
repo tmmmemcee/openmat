@@ -86,7 +86,21 @@ export interface EventSettings {
   restMin: number;
   registrationOpen: boolean;
   grouping: { targetSize: number; minSize: number; maxSize: number; maxSpreadPct: number; spreadFloor: number };
+  /** Meets only. */
+  meet?: MeetSettings;
 }
+
+export interface MeetSettings {
+  matchesPerKid: number;
+  maxWeightPct: number;
+  maxAgeGap: number;
+  mixGenders?: boolean;
+}
+
+export type EventFormat = "madison" | "weight-classes" | "meet";
+
+/** Youth events (Madison groups and meets) place kids in age groups by birth year. */
+export const isYouth = (format: EventFormat) => format !== "weight-classes";
 
 export interface EventInfo {
   slug: string;
@@ -99,7 +113,7 @@ export interface EventInfo {
   state: string;
   listed: boolean;
   isDemo?: boolean;
-  format: "madison" | "weight-classes";
+  format: EventFormat;
   seasonYear: number;
   ruleset?: { id: string; name: string; summary: string; links: { label: string; url: string }[] };
   settings: EventSettings;
@@ -118,7 +132,7 @@ export interface ListedEvent {
   location: string;
   city: string;
   state: string;
-  format: "madison" | "weight-classes";
+  format: EventFormat;
   registrationOpen: boolean;
   divisions: string[];
   wrestlers: number;
@@ -253,7 +267,7 @@ export interface Bracket {
   groupId: string | null;
   weightClass: string | null;
   name: string;
-  format: "round-robin" | "double-elim" | "single-elim";
+  format: "round-robin" | "double-elim" | "single-elim" | "pairings";
   options: { places?: number; trueSecond?: boolean; thirdPlace?: boolean };
   size: number | null;
   draw: (string | null)[];

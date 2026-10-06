@@ -4,8 +4,17 @@ import { bigserial, boolean, index, integer, jsonb, pgTable, real, text, timesta
  * How the event forms brackets:
  *   - "madison": youth scratch weights, grouped by weight within age divisions
  *   - "weight-classes": official weight classes (high school, USAW kids nationals style)
+ *   - "meet": youth scratch dual / tri-meet: one-off matches paired across teams
  */
-export type EventFormat = "madison" | "weight-classes";
+export type EventFormat = "madison" | "weight-classes" | "meet";
+
+/** Pairing limits for youth scratch duals / tri-meets (see core `MeetOptions`). */
+export interface MeetSettings {
+  matchesPerKid: number;
+  maxWeightPct: number;
+  maxAgeGap: number;
+  mixGenders: boolean;
+}
 
 export interface EventSettings {
   mats: number;
@@ -15,6 +24,8 @@ export interface EventSettings {
   restMin: number;
   /** Anyone with the public link can register while this is on. */
   registrationOpen: boolean;
+  /** Meets only. */
+  meet?: MeetSettings;
 }
 
 export const events = pgTable(
@@ -188,7 +199,8 @@ export const groupMembers = pgTable(
   (t) => [uniqueIndex("group_members_entry_idx").on(t.entryId), index("group_members_group_idx").on(t.groupId)],
 );
 
-export type BracketFormat = "round-robin" | "double-elim" | "single-elim";
+/** "pairings": a meet's hand-picked or auto-made one-off matches (fixed wrestlers, no standings). */
+export type BracketFormat = "round-robin" | "double-elim" | "single-elim" | "pairings";
 
 export interface BracketOptions {
   /** Double elim: places wrestled for. */

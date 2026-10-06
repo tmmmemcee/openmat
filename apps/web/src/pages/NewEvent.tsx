@@ -6,7 +6,7 @@ import { Button, Card, CopyButton, ErrorBox, Field, Header, Input, Notice, Page,
 import { REGIONS } from "../lib/states";
 import { setToken, staffUrl } from "../token";
 
-type Kind = "youth" | "official";
+type Kind = "youth" | "meet" | "official";
 
 interface DivisionDraft {
   name: string;
@@ -48,6 +48,7 @@ export default function NewEvent() {
   const [directorEmail, setDirectorEmail] = useState("");
   const [listed, setListed] = useState(true);
   const [kind, setKind] = useState<Kind>("youth");
+  const [meet, setMeet] = useState({ matchesPerKid: 2, maxWeightPct: 10, maxAgeGap: 2 });
   const [ages, setAges] = useState<string[]>(["8U", "10U", "12U", "14U"]);
   const [genders, setGenders] = useState<"separate" | "together">("separate");
   const [presets, setPresets] = useState<string[]>(["NFHS Boys (14)"]);
@@ -60,13 +61,13 @@ export default function NewEvent() {
   const navigate = useNavigate();
 
   const t = templates.data;
-  const defaultRuleset = kind === "youth" ? "usaw-kids-folkstyle-2025-26" : presets.some((p) => p.startsWith("NFHS")) ? "nfhs-2025-26" : "usaw-kids-folkstyle-2025-26";
+  const defaultRuleset = kind !== "official" ? "usaw-kids-folkstyle-2025-26" : presets.some((p) => p.startsWith("NFHS")) ? "nfhs-2025-26" : "usaw-kids-folkstyle-2025-26";
   const ruleset = t?.rulesets.find((r) => r.id === (rulesetId || defaultRuleset));
   const rest = restMin ?? ruleset?.minRestMin ?? 30;
 
   const divisions = useMemo<DivisionDraft[]>(() => {
     if (!t) return [];
-    if (kind === "youth") {
+    if (kind !== "official") {
       const chosen = t.ageDivisions.filter((a) => ages.includes(a.name));
       const genderList = genders === "separate" ? (["boys", "girls"] as const) : (["mixed"] as const);
       return chosen.flatMap((a) =>
@@ -102,9 +103,10 @@ export default function NewEvent() {
     setRegion(src.state);
     setDirectorEmail(src.directorEmail ?? "");
     setListed(false);
-    const newKind: Kind = src.format === "madison" ? "youth" : "official";
+    const newKind: Kind = src.format === "madison" ? "youth" : src.format === "meet" ? "meet" : "official";
     setKind(newKind);
-    if (newKind === "youth") {
+    if (src.settings.meet) setMeet(src.settings.meet);
+    if (newKind !== "official") {
       const ageSet = new Set<string>();
       let hasBoys = false;
       let hasGirls = false;
@@ -147,9 +149,9 @@ export default function NewEvent() {
           state: region,
           listed,
           directorEmail: directorEmail || null,
-          format: kind === "youth" ? "madison" : "weight-classes",
+          format: kind === "youth" ? "madison" : kind === "meet" ? "meet" : "weight-classes",
           rulesetId: ruleset!.id,
-          settings: { mats, restMin: rest },
+          settings: { mats, restMin: rest, ...(kind === "meet" ? { meet: { ...meet, mixGenders: genders === "together" } } : {}) },
           divisions,
         },
       }),
@@ -276,6 +278,7 @@ export default function NewEvent() {
               {(
                 [
                   ["youth", "Youth: group by weight at weigh-ins", "No fixed weight classes. Kids of the same age group are put in small groups of similar weight (within about 10%). Most local youth tournaments do this."],
+                  ["meet", "Scratch dual or tri-meet", "Two or three teams, no brackets. Coaches send their kids' latest weights and each kid gets a set number of matches against the closest kid on another team, with a little extra room when experience matches."],
                   ["official", "Official weight classes", "Wrestlers enter a set weight class (106, 113, ... or kids classes). High school tournaments and kids qualifiers do this."],
                 ] as const
               ).map(([value, title, text]) => (
@@ -295,7 +298,7 @@ export default function NewEvent() {
             </div>
           )}
 
-          {step === 2 && kind === "youth" && (
+          {step === 2 && kind !== "official" && (
             <div className="space-y-5">
               <div>
                 <p className="mb-2 text-sm font-medium text-slate-700">Age groups</p>
@@ -322,6 +325,37 @@ export default function NewEvent() {
                   </Chip>
                 </div>
               </div>
+              {kind === "meet" && (
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Field label="Matches per kid">
+                    <Select value={meet.matchesPerKid} onChange={(e) => setMeet({ ...meet, matchesPerKid: Number(e.target.value) })}>
+                      {[1, 2, 3, 4].map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field label="Max weight difference" hint="+5% when experience matches">
+                    <Select value={meet.maxWeightPct} onChange={(e) => setMeet({ ...meet, maxWeightPct: Number(e.target.value) })}>
+                      {[5, 8, 10, 12, 15].map((n) => (
+                        <option key={n} value={n}>
+                          {n}%
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                  <Field label="Max age difference" hint="+1 year when experience matches">
+                    <Select value={meet.maxAgeGap} onChange={(e) => setMeet({ ...meet, maxAgeGap: Number(e.target.value) })}>
+                      {[0, 1, 2, 3].map((n) => (
+                        <option key={n} value={n}>
+                          {n} year{n === 1 ? "" : "s"}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                </div>
+              )}
               <DivisionPreview divisions={divisions} />
             </div>
           )}

@@ -11,6 +11,7 @@ import {
   resolveBracket,
   roundRobin,
   type ScoredBracket,
+  meetScores,
   teamScores,
 } from "@openmat/core";
 import { and, asc, eq, inArray, isNotNull, ne, or } from "drizzle-orm";
@@ -54,7 +55,7 @@ function drawFor(members: Entry[], format: BracketFormat): { draw: (string | nul
   return { draw: drawBracket(members.map((m) => ({ id: m.id, team: m.team || undefined })), { seeds, size }), size };
 }
 
-function boutMinutes(event: Event, division: Division): number {
+export function boutMinutes(event: Event, division: Division): number {
   const ruleset = RULESETS.find((r) => r.id === event.rulesetId);
   return estimateBoutMinutes(division.periodsSec, ruleset?.breakSec ?? 30);
 }
@@ -131,9 +132,20 @@ export function bracketRoutes(app: FastifyInstance, db: Db, scheduler: Notificat
     const event = await loadEvent(db, req.params.slug);
     if (publicCache(req, reply, `t${event.version}`, 10)) return reply;
     const snap = await snapshot(db, event);
-    const body = await memo(snap, "team-scores", () => teamScoresJson(db, event.id, snap.views));
+    const body = await memo(snap, "team-scores", () => (event.format === "meet" ? meetScoresJson(db, event.id, snap.views) : teamScoresJson(db, event.id, snap.views)));
     return reply.type("application/json").send(body);
   });
+
+  /** Meets: each win earns its team the result's team points; also the score between each pair of teams. */
+  async function meetScoresJson(db: Db, eventId: string, views: Awaited<ReturnType<typeof loadBracketViews>>): Promise<string> {
+    const people = await db.select({ id: entries.id, team: entries.team }).from(entries).where(eq(entries.eventId, eventId));
+    const teamOf = new Map(people.map((p) => [p.id, p.team || "(no team)"]));
+    const results = views
+      .flatMap((v) => v.bouts)
+      .filter((b) => b.status === "done" && b.a && b.b && b.winnerEntryId && b.result)
+      .map((b) => ({ teamA: teamOf.get(b.a!)!, teamB: teamOf.get(b.b!)!, winnerTeam: teamOf.get(b.winnerEntryId!)!, teamPoints: b.result!.teamPoints }));
+    return JSON.stringify({ kind: "meet", ...meetScores(results) });
+  }
 
   async function teamScoresJson(db: Db, eventId: string, views: Awaited<ReturnType<typeof loadBracketViews>>): Promise<string> {
     const bs = await db.select().from(brackets).where(eq(brackets.eventId, eventId));
@@ -167,6 +179,7 @@ export function bracketRoutes(app: FastifyInstance, db: Db, scheduler: Notificat
     const event = await loadEvent(db, req.params.slug);
     await requireRole(db, req, event.id);
     const input = generateInput.parse(req.body ?? {});
+    if (event.format === "meet") throw new HttpError(400, "Meets don't use brackets: make the matches on the Pairings tab.");
     if (await anyBoutStarted(db, event.id)) {
       throw new HttpError(409, "Bouts have already been wrestled, so brackets can't be rebuilt. Redraw single brackets instead.");
     }
@@ -291,7 +304,7 @@ export function bracketRoutes(app: FastifyInstance, db: Db, scheduler: Notificat
         sched.push(...bracketScheduleBouts(`${b.id}:`, core, resolveBracket(core, b.draw, results), timing));
       } else {
         const pool = [...list]
-          .sort((x, y) => Number(x.key) - Number(y.key))
+          .sort((x, y) => (b.format === "pairings" ? x.round - y.round : 0) || Number(x.key) - Number(y.key))
           .map((r) => ({ round: r.round, order: Number(r.key), wrestler1: r.entryA!, wrestler2: r.entryB! }));
         sched.push(...poolScheduleBouts(`${b.id}:`, pool, timing));
       }

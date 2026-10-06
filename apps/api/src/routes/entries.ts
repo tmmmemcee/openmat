@@ -11,7 +11,7 @@ import type { Db } from "../db/client.js";
 import { divisions, entries, type EntryStatus, groupMembers, wrestlers } from "../db/schema.js";
 import { HttpError } from "../errors.js";
 import { RateLimiter } from "../rateLimit.js";
-import { loadDivisions, loadEvent } from "./events.js";
+import { isYouthFormat, loadDivisions, loadEvent } from "./events.js";
 
 /** Most wrestlers a coach can register at once from the public page. */
 export const PUBLIC_ROSTER_MAX = 150;
@@ -75,7 +75,7 @@ export function resolveDivision(event: Event, divs: Division[], input: EntryInpu
     if (!d) throw new HttpError(400, "That division isn't part of this event.");
     return d;
   }
-  if (event.format === "madison") {
+  if (isYouthFormat(event.format)) {
     if (!input.birthYear || !input.gender) throw new HttpError(400, "Enter a birth year and boys/girls, or pick a division.");
     const candidates = divs.filter((d) => d.gender === input.gender || d.gender === "mixed");
     const byName = new Map(candidates.map((d) => [d.ageDivision!, d]));

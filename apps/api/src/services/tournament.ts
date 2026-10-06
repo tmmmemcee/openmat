@@ -131,6 +131,16 @@ export function viewBracket(bracket: BracketRow, rows: BoutRow[]): BracketView {
   });
 
   const core = coreBracket(bracket);
+  if (!core && bracket.format === "pairings") {
+    // A meet's one-off matches: fixed wrestlers, no standings.
+    return {
+      ...base,
+      bouts: [...rows]
+        .sort((x, y) => x.round - y.round || Number(x.key) - Number(y.key))
+        .map((r) => ({ ...common(r), label: `Match ${r.round}`, section: "pool" as const, a: r.entryA, b: r.entryB, status: statusOf(r, "ready") })),
+      places: [],
+    };
+  }
   if (!core) {
     // Round robin.
     const ordered = [...rows].sort((x, y) => Number(x.key) - Number(y.key));

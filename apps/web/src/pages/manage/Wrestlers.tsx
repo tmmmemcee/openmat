@@ -1,5 +1,5 @@
 import { type ChangeEvent, useMemo, useState } from "react";
-import { type Entry, type EventInfo, api, uploadFile } from "../../api";
+import { type Entry, type EventInfo, api, isYouth, uploadFile } from "../../api";
 import { TEMPLATE_CSV, parseWrestlerCsv } from "../../lib/csv";
 import { fullName, lbs } from "../../lib/format";
 import { useEntries, useEventMutation } from "../../lib/hooks";
@@ -337,7 +337,7 @@ function EditDialog({ event, entry, onClose }: { event: EventInfo; entry: Entry;
   };
 
   const division = event.divisions.find((d) => d.id === draft.divisionId);
-  const youth = event.format === "madison";
+  const youth = isYouth(event.format);
   const olderDivisions = event.divisions.filter(
     (d) => d.gender === division?.gender && d.maxAge !== null && division?.maxAge !== null && d.maxAge > (division?.maxAge ?? 0),
   );

@@ -9,6 +9,7 @@ import { CORS_ORIGINS, PUBLIC_BASE_URL } from "./config.js";
 import { type Mailer, createMailer } from "./mailer.js";
 import { demoRoutes } from "./routes/demo.js";
 import { followRoutes } from "./routes/follows.js";
+import { meetRoutes } from "./routes/meet.js";
 import { teamRoutes } from "./routes/teams.js";
 import { NotificationScheduler, type Notifier, createNotifier } from "./services/notify.js";
 import { bumpVersion } from "./services/snapshot.js";
@@ -65,6 +66,7 @@ export async function buildApp(db: Db, options: FastifyServerOptions & { mailer?
   followRoutes(app, db, notifier, scheduler);
   demoRoutes(app, db);
   teamRoutes(app, db, mailer);
+  meetRoutes(app, db);
   return app;
 }
 

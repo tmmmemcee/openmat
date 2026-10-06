@@ -1,7 +1,7 @@
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
-import { type EventInfo, api } from "../api";
+import { type EventInfo, api, isYouth } from "../api";
 import { parseWrestlerCsv, parseWrestlerText } from "../lib/csv";
 import { formatDate } from "../lib/format";
 import { useEvent } from "../lib/hooks";
@@ -44,7 +44,7 @@ function missing(r: Row, event: EventInfo): string[] {
   const out: string[] = [];
   if (!r.firstName.trim()) out.push("first name");
   if (!r.lastName.trim()) out.push("last name");
-  if (event.format === "madison") {
+  if (isYouth(event.format)) {
     if (!/^\d{4}$/.test(r.birthYear)) out.push("birth year");
     if (!r.gender && !event.divisions.some((d) => d.gender === "mixed")) out.push("boys/girls");
   } else {
@@ -74,7 +74,7 @@ function RosterForm({ event }: { event: EventInfo }) {
   const [rows, setRows] = useState<Row[]>(() => [blankRow(), blankRow(), blankRow()]);
   const [paste, setPaste] = useState("");
   const [done, setDone] = useState<string[]>([]);
-  const youth = event.format === "madison";
+  const youth = isYouth(event.format);
   const mixed = event.divisions.some((d) => d.gender === "mixed");
   const filled = rows.filter((r) => !isEmpty(r));
   const incomplete = filled.filter((r) => missing(r, event).length > 0);

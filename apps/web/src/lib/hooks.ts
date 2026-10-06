@@ -39,6 +39,7 @@ export function useEventMutation<TVars, TResult = unknown>(slug: string, fn: (va
       void qc.invalidateQueries({ queryKey: ["event", slug] });
       void qc.invalidateQueries({ queryKey: ["brackets", slug] });
       void qc.invalidateQueries({ queryKey: ["mat", slug] });
+      void qc.invalidateQueries({ queryKey: ["pairings", slug] });
     },
   });
 }
