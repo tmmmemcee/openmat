@@ -39,7 +39,7 @@ auto-deploy on every push to `main` on GitHub.
 ## Verify
 
 - Web home loads → `https://openmat-web.onrender.com/`
-- API health → `https://openmat-api.onrender.com/api/health` returns
+- API health → `https://openmat-api-0rjq.onrender.com/api/health` returns
   `{"ok":true}`
 - Create an event: click **Create event**, fill the wizard, then check your
   email or the API log for the director link (no SMTP set → link prints to
@@ -68,9 +68,20 @@ git push                                # auto-deploys web + api
 - **Database migrations run automatically** each time the API starts, so a
   fresh database gets its tables on the first deploy.
 
+## How the web app finds the API
+
+- Render service addresses are first-come. `openmat-api.onrender.com` belongs
+  to someone else, so our API is **`https://openmat-api-0rjq.onrender.com`**.
+- The web build reads the API address from **`apps/web/.env.production`**
+  (committed). Change it there if the API's address ever changes, then push.
+- The API always allows requests from the official web app
+  (`https://openmat-web.onrender.com`) and from `PUBLIC_BASE_URL`; extra origins
+  go in `CORS_ORIGIN` (see `apps/api/src/config.ts`).
+- Env var changes in `render.yaml` didn't reach the already-created services,
+  which is why these values live in code now.
+
 ## Going custom-domain later
 
-Once you own a domain, add it in Render for both services. The `_redirects`
-file in `apps/web/public/_redirects` hard-codes
-`https://openmat-api.onrender.com`; if you rename the API service you'll need
-to update that file.
+Once you own a domain, add it in Render for both services, then update
+`apps/web/.env.production` (if the API's address changes) and
+`OFFICIAL_WEB_ORIGINS` in `apps/api/src/config.ts` (for the web address).

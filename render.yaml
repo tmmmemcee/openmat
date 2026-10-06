@@ -29,10 +29,11 @@ services:
         value: "3001"
       - key: TRUST_PROXY
         value: "1"
-      # Origins the API will accept cross-origin requests from. The production
-      # web origin plus the Vite dev origin so local dev still works.
+      # Extra origins for cross-origin requests. The official web app
+      # (https://openmat-web.onrender.com), PUBLIC_BASE_URL and local dev are
+      # always allowed by the code (apps/api/src/config.ts).
       - key: CORS_ORIGIN
-        value: "https://openmat-web.onrender.com,http://localhost:5173"
+        value: ""
       - key: PUBLIC_BASE_URL
         sync: false
       - key: DATABASE_URL
@@ -59,10 +60,10 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "24"
-      # Vite inlines VITE_* env vars at build time, so this has to be set
-      # before buildCommand runs — Render does that automatically.
-      - key: VITE_API_BASE_URL
-        value: "https://openmat-api.onrender.com"
+      # The API address the web build uses comes from apps/web/.env.production
+      # (committed), not from here: env var changes in this file didn't reach
+      # the existing service. Render named the API openmat-api-0rjq because
+      # "openmat-api" was taken by another account.
       # After the first deploy, set PUBLIC_BASE_URL on openmat-api to
       # "https://openmat-web.onrender.com" so director links in email
       # point at the real web origin.

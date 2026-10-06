@@ -75,6 +75,11 @@ export default function Home() {
               </div>
             ))}
           </div>
+          {start.isPending && (
+            <p className="mt-3 text-sm text-slate-600" role="status">
+              Building your tournament. This can take up to a minute if the server has been asleep.
+            </p>
+          )}
           <div className="mt-3">
             <ErrorBox error={start.error} />
           </div>

@@ -1,9 +1,9 @@
 import { getToken } from "./token";
 
-// Empty string keeps the Vite dev proxy (apps/web/vite.config.ts) in play; in
-// production VITE_API_BASE_URL is set at build time to the API origin so the
-// browser talks directly to openmat-api.onrender.com.
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "";
+// Where the API lives. Empty in development (the Vite dev proxy forwards /api).
+// Production builds read VITE_API_BASE_URL from apps/web/.env.production, so
+// the browser calls the API service directly (it allows this origin via CORS).
+const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
 export class ApiError extends Error {
   constructor(
@@ -29,7 +29,22 @@ export async function api<T>(path: string, options: { method?: string; body?: un
   } catch {
     throw new ApiError(0, "Can't reach the server. Check your internet connection.");
   }
-  const data = res.status === 204 ? null : await res.json().catch(() => null);
+  return readResponse<T>(res);
+}
+
+const NOT_THE_API =
+  "Couldn't reach the OpenMat server: the address answered with a web page instead of data. Please try again in a minute, and tell the site owner if it keeps happening.";
+
+/**
+ * Parse an API response. Anything that isn't JSON didn't come from our API
+ * (e.g. a host's "page not found" page, or the web app's own index.html), so
+ * say so plainly instead of failing on missing fields later.
+ */
+async function readResponse<T>(res: Response): Promise<T> {
+  if (res.status === 204) return null as T;
+  const isJson = (res.headers.get("content-type") ?? "").includes("application/json");
+  if (!isJson) throw new ApiError(res.ok ? 502 : res.status, NOT_THE_API);
+  const data = await res.json().catch(() => null);
   if (!res.ok) throw new ApiError(res.status, data?.error ?? `Request failed (${res.status})`);
   return data as T;
 }
@@ -46,9 +61,7 @@ export async function uploadFile<T = unknown>(
   const form = new FormData();
   form.append(options.fieldName ?? "file", file);
   const res = await fetch(`${API_BASE}/api${path}`, { method: "POST", headers, body: form });
-  const data = res.status === 204 ? null : await res.json().catch(() => null);
-  if (!res.ok) throw new ApiError(res.status, data?.error ?? `Request failed (${res.status})`);
-  return data as T;
+  return readResponse<T>(res);
 }
 
 // ---- Types returned by the API ----
