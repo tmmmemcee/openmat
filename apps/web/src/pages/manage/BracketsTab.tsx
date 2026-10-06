@@ -30,6 +30,18 @@ export default function BracketsTab({ event }: { event: EventInfo }) {
 
   return (
     <div className="space-y-4">
+      {event.format === "meet" ? (
+        <Card>
+          <h2 className="font-bold">1. Make the matches</h2>
+          <p className="mt-1 text-sm text-slate-600">
+            A meet has no brackets: pair kids on the{" "}
+            <Link to={`/e/${slug}/manage/pairings`} className="font-semibold text-brand-700">
+              Pairings tab
+            </Link>
+            , then build the mat schedule here. {bouts.length > 0 && `${bouts.length} matches so far.`}
+          </p>
+        </Card>
+      ) : (
       <Card>
         <h2 className="font-bold">1. Make brackets</h2>
         <p className="mt-1 text-sm text-slate-600">
@@ -102,6 +114,8 @@ export default function BracketsTab({ event }: { event: EventInfo }) {
         </div>
       </Card>
 
+      )}
+
       <Card>
         <h2 className="font-bold">2. Mat schedule</h2>
         <p className="mt-1 text-sm text-slate-600">
@@ -159,7 +173,7 @@ export default function BracketsTab({ event }: { event: EventInfo }) {
                 return (
                   <tr key={b.id}>
                     <td className="px-4 py-2.5 font-medium">{b.name}</td>
-                    <td className="px-4 py-2.5 text-slate-600">{b.format === "round-robin" ? "Round robin" : `${b.format === "double-elim" ? "Double" : "Single"} elim (${b.size})`}</td>
+                    <td className="px-4 py-2.5 text-slate-600">{b.format === "pairings" ? "Meet matches" : b.format === "round-robin" ? "Round robin" : `${b.format === "double-elim" ? "Double" : "Single"} elim (${b.size})`}</td>
                     <td className="px-4 py-2.5">{b.draw.filter(Boolean).length}</td>
                     <td className="px-4 py-2.5">
                       {done === real.length && real.length ? <Badge tone="green">Done</Badge> : `${done}/${real.length} bouts`}
@@ -170,7 +184,7 @@ export default function BracketsTab({ event }: { event: EventInfo }) {
                       )}
                     </td>
                     <td className="px-4 py-2.5 text-right whitespace-nowrap">
-                      {b.format !== "round-robin" && (
+                      {b.format !== "round-robin" && b.format !== "pairings" && (
                         <Button variant="ghost" size="sm" onClick={() => setSeeding(b)}>
                           Seeds
                         </Button>

@@ -5,7 +5,7 @@ import { z } from "zod";
 import { accessFor, createAccessLink, requireRole } from "../auth.js";
 import { directorUrl } from "../config.js";
 import type { Db } from "../db/client.js";
-import { accessLinks, divisions, entries, events, type EventSettings } from "../db/schema.js";
+import { accessLinks, divisions, entries, events, type EventSettings, type MeetSettings } from "../db/schema.js";
 import { HttpError } from "../errors.js";
 import { publicCache } from "../httpCache.js";
 import { customAlphabet } from "../ids.js";
@@ -36,7 +36,18 @@ const settingsInput = z.object({
     maxSpreadPct: z.number().min(0).max(50),
     spreadFloor: z.number().min(0).max(30),
   }),
+  meet: z
+    .object({
+      matchesPerKid: z.number().int().min(1).max(6),
+      maxWeightPct: z.number().min(0).max(40),
+      maxAgeGap: z.number().int().min(0).max(10),
+      mixGenders: z.boolean(),
+    })
+    .partial(),
 });
+
+/** Youth events (Madison groups and meets) place kids by birth year into age divisions. */
+export const isYouthFormat = (format: string) => format !== "weight-classes";
 
 const email = z.string().trim().toLowerCase().email("That email doesn't look right").max(200);
 const time = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use a time like 09:00");
@@ -57,7 +68,7 @@ const createEventInput = z
     state: state.default(""),
     listed: z.boolean().default(true),
     directorEmail: email.nullish().or(z.literal("").transform(() => null)),
-    format: z.enum(["madison", "weight-classes"]),
+    format: z.enum(["madison", "weight-classes", "meet"]),
     rulesetId: z.string().refine((id) => RULESETS.some((r) => r.id === id), "Unknown rule set"),
     seasonYear: z.number().int().min(2000).max(2100).optional(),
     settings: settingsInput.partial().default({}),
@@ -65,7 +76,7 @@ const createEventInput = z
   })
   .superRefine((v, ctx) => {
     for (const [i, d] of v.divisions.entries()) {
-      if (v.format === "madison" && (!d.ageDivision || !d.maxAge)) {
+      if (isYouthFormat(v.format) && (!d.ageDivision || !d.maxAge)) {
         ctx.addIssue({ code: "custom", path: ["divisions", i], message: `${d.name} needs an age group for youth grouping` });
       }
       if (v.format === "weight-classes" && !d.weightClasses?.length) {
@@ -80,6 +91,8 @@ export const DEFAULT_SETTINGS: EventSettings = {
   registrationOpen: false,
   grouping: { targetSize: 4, minSize: 3, maxSize: 5, maxSpreadPct: 10, spreadFloor: 0 },
 };
+
+export const DEFAULT_MEET_SETTINGS: MeetSettings = { matchesPerKid: 2, maxWeightPct: 10, maxAgeGap: 2, mixGenders: false };
 
 /** Season year for age divisions: a season starting in the fall counts as the next year (Dec 2026 -> 2027). */
 export function seasonYearFor(date: string): number {
@@ -120,7 +133,7 @@ export function eventRoutes(app: FastifyInstance, db: Db, mailer: Mailer): void 
         state: z.string().trim().toUpperCase().max(3).optional(),
         from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
         to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-        format: z.enum(["madison", "weight-classes"]).optional(),
+        format: z.enum(["madison", "weight-classes", "meet"]).optional(),
         open: z.enum(["true", "false"]).optional(),
       })
       .parse(req.query);
@@ -201,6 +214,7 @@ export function eventRoutes(app: FastifyInstance, db: Db, mailer: Mailer): void 
       restMin: ruleset.minRestMin ?? DEFAULT_SETTINGS.restMin,
       ...input.settings,
       grouping: { ...DEFAULT_SETTINGS.grouping, ...input.settings.grouping },
+      ...(input.format === "meet" ? { meet: { ...DEFAULT_MEET_SETTINGS, ...input.settings.meet } } : { meet: undefined }),
     };
 
     const result = await db.transaction(async (tx) => {
@@ -312,7 +326,12 @@ export function eventRoutes(app: FastifyInstance, db: Db, mailer: Mailer): void 
       })
       .parse(req.body);
     const settings = input.settings
-      ? { ...event.settings, ...input.settings, grouping: { ...event.settings.grouping, ...input.settings.grouping } }
+      ? {
+          ...event.settings,
+          ...input.settings,
+          grouping: { ...event.settings.grouping, ...input.settings.grouping },
+          ...(event.format === "meet" ? { meet: { ...DEFAULT_MEET_SETTINGS, ...event.settings.meet, ...input.settings.meet } } : { meet: undefined }),
+        }
       : event.settings;
 
     await db.transaction(async (tx) => {

@@ -67,6 +67,7 @@ export default function Tournaments() {
                 <option value="">All</option>
                 <option value="madison">Youth (grouped by weight)</option>
                 <option value="weight-classes">Weight classes</option>
+                <option value="meet">Duals / tri-meets</option>
               </Select>
             </Field>
           </div>
@@ -105,7 +106,7 @@ export default function Tournaments() {
                       <p className="truncate text-sm text-slate-600">{[e.location, [e.city, e.state].filter(Boolean).join(", ")].filter(Boolean).join(" · ")}</p>
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {e.registrationOpen && <Badge tone="green">Registration open</Badge>}
-                        <Badge tone="gray">{e.format === "madison" ? "Youth groups" : "Weight classes"}</Badge>
+                        <Badge tone="gray">{e.format === "madison" ? "Youth groups" : e.format === "meet" ? "Dual / tri-meet" : "Weight classes"}</Badge>
                         {e.wrestlers > 0 && <Badge tone="blue">{e.wrestlers} wrestlers</Badge>}
                       </div>
                       {e.divisions.length > 0 && <p className="mt-2 truncate text-xs text-slate-500">{e.divisions.join(" · ")}</p>}

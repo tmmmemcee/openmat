@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
-import { ApiError, type EventInfo, type ExperienceLevel, type SavedWrestler, type Team, api } from "../../api";
+import { ApiError, type EventInfo, type ExperienceLevel, type SavedWrestler, type Team, api, isYouth } from "../../api";
 import { parseWrestlerText } from "../../lib/csv";
 import { formatDate, lbs } from "../../lib/format";
 import { captureTeamToken, coachLink, getTeamToken } from "../../lib/teamToken";
@@ -349,7 +349,7 @@ interface Pick {
 }
 
 function PickWrestlers({ team, token, event }: { team: Team; token: string; event: EventInfo }) {
-  const youth = event.format === "madison";
+  const youth = isYouth(event.format);
   const multiDiv = !youth && event.divisions.length > 1;
   const [picks, setPicks] = useState<Record<string, Pick>>({});
   const [result, setResult] = useState<{ created: number; errors: { wrestlerId: string; name: string; message: string }[] } | null>(null);

@@ -92,6 +92,12 @@ export default function EventPublic() {
               {ev.settings.grouping.maxSpreadPct}% of their weight, usually {ev.settings.grouping.targetSize} to a group.
             </p>
           )}
+          {ev.format === "meet" && ev.settings.meet && (
+            <p className="mt-3 text-sm text-slate-600">
+              A scratch meet: no brackets. Each kid gets {ev.settings.meet.matchesPerKid} match{ev.settings.meet.matchesPerKid === 1 ? "" : "es"} against
+              kids from other teams of similar weight and age.
+            </p>
+          )}
         </Card>
 
         {ev.ruleset && (
@@ -117,16 +123,18 @@ export default function EventPublic() {
         </Link>
         <div className="grid gap-3 sm:grid-cols-2">
           <Link to={`/e/${slug}/brackets`} className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 hover:ring-brand-600">
-            <div className="font-bold">Brackets & results →</div>
-            <div className="text-sm text-slate-600">Find your wrestler, see their bracket and results.</div>
+            <div className="font-bold">{ev.format === "meet" ? "Matches & results →" : "Brackets & results →"}</div>
+            <div className="text-sm text-slate-600">
+              {ev.format === "meet" ? "Find your wrestler, see who they wrestle and how it went." : "Find your wrestler, see their bracket and results."}
+            </div>
           </Link>
           <Link to={`/e/${slug}/mats`} className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 hover:ring-brand-600">
             <div className="font-bold">Mats: on deck & in the hole →</div>
             <div className="text-sm text-slate-600">Who's wrestling now on every mat, and who's next.</div>
           </Link>
           <Link to={`/e/${slug}/teams`} className="rounded-xl bg-white p-4 shadow-sm ring-1 ring-slate-200 hover:ring-brand-600">
-            <div className="font-bold">Team scores →</div>
-            <div className="text-sm text-slate-600">Team standings as results come in.</div>
+            <div className="font-bold">{ev.format === "meet" ? "Meet score →" : "Team scores →"}</div>
+            <div className="text-sm text-slate-600">{ev.format === "meet" ? "Team against team, as matches finish." : "Team standings as results come in."}</div>
           </Link>
         </div>
       </Page>

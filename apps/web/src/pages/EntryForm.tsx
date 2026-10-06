@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { EventInfo } from "../api";
+import { type EventInfo, isYouth } from "../api";
 import { Button, ErrorBox, Field, Input, Select } from "../ui";
 
 export interface EntryDraft {
@@ -32,7 +32,7 @@ export function EntryForm({
 }) {
   const [d, setD] = useState<EntryDraft>({ firstName: "", lastName: "", team: "", gender: null, divisionId: null });
   const set = (patch: Partial<EntryDraft>) => setD((prev) => ({ ...prev, ...patch }));
-  const youth = event.format === "madison";
+  const youth = isYouth(event.format);
   const division = event.divisions.find((x) => x.id === d.divisionId);
   const genders = new Set(event.divisions.map((x) => x.gender));
   const valid =

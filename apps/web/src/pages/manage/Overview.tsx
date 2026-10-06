@@ -101,7 +101,7 @@ export default function Overview({ event }: { event: EventInfo }) {
         <Card>
           <h2 className="font-bold">Setup</h2>
           <dl className="mt-2 space-y-2 text-sm">
-            <Row label="Format">{event.format === "madison" ? "Youth groups by weight" : "Official weight classes"}</Row>
+            <Row label="Format">{event.format === "madison" ? "Youth groups by weight" : event.format === "meet" ? "Scratch dual / tri-meet" : "Official weight classes"}</Row>
             <Row label="Rules">{event.ruleset?.name}</Row>
             <Row label="Rest between matches">{event.settings.restMin} min</Row>
             <Row label="Mats">

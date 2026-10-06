@@ -26,7 +26,9 @@ function wrestlerAvatar(w: Wrestler | undefined, dim: string = "size-6") {
 }
 
 const formatLabel = (b: Bracket) =>
-  b.format === "round-robin"
+  b.format === "pairings"
+    ? `Meet · ${b.bouts.length} matches`
+    : b.format === "round-robin"
     ? "Round robin"
     : `${b.format === "double-elim" ? "Double elimination" : "Single elimination"} · ${b.size}-man${b.options.places ? ` · places 1–${b.options.places}` : ""}`;
 
@@ -37,7 +39,9 @@ export function BracketView({ bracket, wrestlers, highlight, print }: { bracket:
         <Badge tone="gray">{formatLabel(bracket)}</Badge>
         <span>{bracket.draw.filter(Boolean).length} wrestlers</span>
       </div>
-      {bracket.format === "round-robin" ? (
+      {bracket.format === "pairings" ? (
+        <MeetMatches bracket={bracket} wrestlers={wrestlers} highlight={highlight} />
+      ) : bracket.format === "round-robin" ? (
         <RoundRobin bracket={bracket} wrestlers={wrestlers} highlight={highlight} print={print} />
       ) : (
         <Elimination bracket={bracket} wrestlers={wrestlers} highlight={highlight} print={print} />
@@ -129,6 +133,19 @@ export function BoutBox({ bout, wrestlers, highlight, compact }: { bout: Bout; w
     );
   }
   return box;
+}
+
+/** A meet's one-off matches; a searched-for kid's matches come first. */
+function MeetMatches({ bracket, wrestlers, highlight }: { bracket: Bracket; wrestlers: WrestlerMap; highlight?: string | null }) {
+  const mine = (b: Bout) => !!highlight && (b.a === highlight || b.b === highlight);
+  const order = [...bracket.bouts].sort((x, y) => Number(mine(y)) - Number(mine(x)));
+  return (
+    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+      {order.map((b) => (
+        <BoutBox key={b.id} bout={b} wrestlers={wrestlers} highlight={highlight} />
+      ))}
+    </div>
+  );
 }
 
 function RoundRobin({ bracket, wrestlers, highlight, print }: { bracket: Bracket; wrestlers: WrestlerMap; highlight?: string | null; print?: boolean }) {
