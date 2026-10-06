@@ -2,7 +2,7 @@ import { and, eq, lt, sql } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { Db } from "../db/client.js";
-import { events } from "../db/schema.js";
+import { events, teams } from "../db/schema.js";
 import { HttpError } from "../errors.js";
 import { RateLimiter } from "../rateLimit.js";
 import { buildDemo } from "../services/demo.js";
@@ -15,6 +15,8 @@ export const DEMO_LIFETIME_HOURS = 24;
 export async function cleanUpDemos(db: Db): Promise<number> {
   const cutoff = new Date(Date.now() - DEMO_LIFETIME_HOURS * 3600_000);
   const deleted = await db.delete(events).where(and(eq(events.isDemo, true), lt(events.createdAt, cutoff))).returning({ id: events.id });
+  // Demo teams' saved rosters go too (their wrestlers cascade).
+  await db.delete(teams).where(and(eq(teams.isDemo, true), lt(teams.createdAt, cutoff)));
   return deleted.length;
 }
 
@@ -23,7 +25,7 @@ export function demoRoutes(app: FastifyInstance, db: Db): void {
 
   /** A fresh, private demo tournament for this visitor, mid-event. They get the director link. */
   app.post("/api/demo", async (req, reply) => {
-    const { kind } = z.object({ kind: z.enum(["youth", "high-school"]) }).parse(req.body ?? {});
+    const { kind } = z.object({ kind: z.enum(["youth", "high-school", "meet"]) }).parse(req.body ?? {});
     if (!limiter.allow(req.ip)) throw new HttpError(429, "You've made a lot of demos this hour. Please use one you already have, or try again later.");
     const [{ count }] = (await db.select({ count: sql<number>`count(*)::int` }).from(events).where(eq(events.isDemo, true))) as [{ count: number }];
     if (count >= MAX_LIVE_DEMOS) {

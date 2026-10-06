@@ -3,18 +3,29 @@
  *   - "youth": a youth event grouped by weight (round robins) on 3 mats
  *   - "high-school": a high school invitational with seeds and double
  *     elimination on 4 mats
+ *   - "meet": a youth scratch tri-meet, auto-paired across three teams
+ * Youth and meet kids come from saved team rosters (with private experience
+ * levels and ratings), so the coach and director features have data.
  * Finished bouts get realistic times, one bout per mat is live, and the rest
  * are waiting in line. Used by the `demo` command and the home page's
  * "Try the live demo".
  */
-import { type Corner, seededRandom } from "@openmat/core";
+import { type Corner, type ExperienceLevel, seedRating, seededRandom } from "@openmat/core";
 import { eq } from "drizzle-orm";
 import type { FastifyInstance } from "fastify";
 import type { Db } from "../db/client.js";
-import { bouts, events } from "../db/schema.js";
+import { hashToken, newToken } from "../auth.js";
+import { bouts, events, teams as teamsTable, wrestlers } from "../db/schema.js";
 import { bumpVersion } from "./snapshot.js";
 
-export type DemoKind = "youth" | "high-school";
+export type DemoKind = "youth" | "high-school" | "meet";
+
+export interface Demo {
+  slug: string;
+  directorToken: string;
+  /** Coach link for one of the demo's saved teams. */
+  coach?: { teamId: string; token: string };
+}
 
 const FIRST = ["Liam","Noah","Oliver","Elijah","James","Lucas","Mason","Ethan","Logan","Jack","Aiden","Owen","Wyatt","Levi","Caleb","Hudson","Ryan","Carter","Grayson","Eli","Colton","Jaxon","Easton","Cole","Brody","Kai","Gavin","Nolan","Chase","Tyler","Hunter","Bryce","Tanner","Cooper","Jace","Austin","Blake","Drew","Gage","Reid","Ava","Mia","Ella","Zoe","Lily","Ruby","Nora","Ivy"];
 const LAST = ["Smith","Johnson","Brown","Garcia","Miller","Davis","Wilson","Moore","Taylor","Anderson","Thomas","Jackson","White","Harris","Martin","Thompson","Olson","Berg","Nguyen","Schmidt","Larson","Hansen","Peterson","Kelly"];
@@ -25,7 +36,7 @@ const localNow = (tz: string) => {
 };
 const hhmm = (min: number) => `${String(Math.floor(((min % 1440) + 1440) % 1440 / 60)).padStart(2, "0")}:${String(((min % 60) + 60) % 60).padStart(2, "0")}`;
 
-export async function buildDemo(app: FastifyInstance, db: Db, kind: DemoKind, seed = Date.now()): Promise<{ slug: string; directorToken: string }> {
+export async function buildDemo(app: FastifyInstance, db: Db, kind: DemoKind, seed = Date.now()): Promise<Demo> {
 const rand = seededRandom(seed);
 const pick = <T,>(list: T[]) => list[Math.floor(rand() * list.length)]!;
 
@@ -54,26 +65,43 @@ function fakeResult(): { winner: Corner; winType: string; score?: { A: number; B
 let tapId = 0;
 const tap = (e: object) => ({ id: `demo-${Date.now().toString(36)}-${++tapId}`, ...e });
 
-/** Score a bout tap by tap (as a table would), then finish it. */
-async function scoreLive(slug: string, boutId: string, token: string, finish: boolean) {
+/** Score a bout tap by tap (as a table would), then finish it. Unfinished bouts are left mid-match with the clock stopped. */
+async function scoreLive(slug: string, boutId: string, token: string, finish: boolean, periodsSec: number[]) {
   const events = [];
-  let t = 10;
   // A valid folkstyle sequence: takedown, escape, takedown, near fall, reversal, escape.
   const plan: [Corner, string][] = [["A", "T3"], ["B", "E1"], ["A", "T3"], ["A", "N2"], ["B", "R2"], ["A", "E1"]];
+  const total = periodsSec.reduce((a, b) => a + b, 0);
+  const step = total / (plan.length + 2);
+  const periodAt = (t: number) => {
+    let end = 0;
+    for (const [i, len] of periodsSec.entries()) {
+      end += len;
+      if (t < end) return { period: i + 1, remainingSec: end - t };
+    }
+    return { period: periodsSec.length, remainingSec: 0 };
+  };
+  let t = 0;
   for (const [corner, action] of plan.slice(0, finish ? plan.length : 3)) {
-    t += 15 + Math.floor(rand() * 30);
-    events.push(tap({ type: "score", corner, action, period: t < 120 ? 1 : t < 240 ? 2 : 3, matchTimeSec: t }));
+    t += Math.round(step * (0.6 + rand() * 0.8));
+    events.push(tap({ type: "score", corner, action, period: periodAt(t).period, matchTimeSec: t }));
   }
-  if (finish) events.push(tap({ type: "penalty", corner: "B", kind: "stalling", period: 3, matchTimeSec: t + 20 }));
+  if (finish) events.push(tap({ type: "penalty", corner: "B", kind: "stalling", period: periodsSec.length, matchTimeSec: Math.min(total - 5, t + 10) }));
   await call("POST", `/events/${slug}/bouts/${boutId}/start`, token);
   await call("POST", `/events/${slug}/bouts/${boutId}/events`, token, { events });
   if (finish) await call("POST", `/events/${slug}/bouts/${boutId}/finish`, token, { mode: "live", ending: { type: "time" } });
+  else {
+    const now = periodAt(t + 8);
+    await call("POST", `/events/${slug}/bouts/${boutId}/clock`, token, { period: now.period, remainingSec: Math.max(1, now.remainingSec), running: false });
+  }
 }
 
 /** Wrestle about `share` of each mat's line, then set realistic past times and start one bout per mat. */
 async function playOut(slug: string, director: string, share: number, pace: number) {
   const info = await call("GET", `/events/${slug}`, director);
   const tableToken = (mat: number) => info.staffLinks.find((l: any) => l.role === "table" && l.mat === mat).token as string;
+  const periodsOf = new Map<string, number[]>(info.divisions.map((d: any) => [d.id, d.periodsSec]));
+  const bracketDivision = new Map<string, string>((await call("GET", `/events/${slug}/brackets`)).brackets.map((b: any) => [b.id, b.divisionId]));
+  const periods = (bout: any) => periodsOf.get(bracketDivision.get(bout.bracketId)!) ?? info.divisions[0].periodsSec;
   for (let round = 0; round < 200; round++) {
     let progressed = false;
     for (let mat = 1; mat <= info.settings.mats; mat++) {
@@ -84,7 +112,7 @@ async function playOut(slug: string, director: string, share: number, pace: numb
       const next = q.queue.find((x: any) => x.bout.status === "ready");
       if (!next) continue;
       progressed = true;
-      if (rand() < 0.3) await scoreLive(slug, next.bout.id, tableToken(mat), true);
+      if (rand() < 0.3) await scoreLive(slug, next.bout.id, tableToken(mat), true, periods(next.bout));
       else await call("POST", `/events/${slug}/bouts/${next.bout.id}/finish`, tableToken(mat), { mode: "manual", ...fakeResult() });
     }
     if (!progressed) break;
@@ -103,7 +131,7 @@ async function playOut(slug: string, director: string, share: number, pace: numb
     const q = await call("GET", `/events/${slug}/mats/${mat}`);
     const next = q.queue.find((x: any) => x.bout.status === "ready");
     if (next) {
-      await scoreLive(slug, next.bout.id, tableToken(mat), false);
+      await scoreLive(slug, next.bout.id, tableToken(mat), false, periods(next.bout));
       await db.update(bouts).set({ startedAt: new Date(now - 90_000) }).where(eq(bouts.id, next.bout.id));
     }
   }
@@ -137,16 +165,8 @@ async function youthEvent() {
       })),
     ),
   });
-  const teams = ["Hawkeye WC", "Valley Vikings", "Ankeny Elite", "Urbandale Youth"];
-  for (const team of teams) {
-    const rows = Array.from({ length: 14 }, (_, i) => {
-      const birthYear = 2015 + Math.floor(rand() * 5);
-      const girl = rand() < 0.15;
-      return { firstName: girl ? pick(FIRST.slice(40)) : pick(FIRST.slice(0, 40)), lastName: pick(LAST), birthYear, gender: girl ? "girls" : "boys", declaredWeight: 45 + (2020 - birthYear) * 7 + Math.round(rand() * 20) };
-    });
-    const contactEmail = `coach@${team.split(" ")[0]!.toLowerCase()}.example`;
-    await call("POST", `/events/${slug}/entries/import`, directorToken, { rows: rows.map((r) => ({ ...r, team, contactEmail })) });
-  }
+  const clubs = await savedTeams(["Hawkeye WC", "Valley Vikings", "Ankeny Elite", "Urbandale Youth"], 14);
+  for (const club of clubs) await register(slug, club);
   const info = await call("GET", `/events/${slug}`, directorToken);
   const weighIn = info.staffLinks.find((l: any) => l.role === "weigh-in").token;
   const entries = await call<any[]>("GET", `/events/${slug}/entries`, directorToken);
@@ -167,7 +187,80 @@ async function youthEvent() {
   await call("POST", `/events/${slug}/brackets/generate`, directorToken, { format: "auto", roundRobinUpTo: 5 });
   await call("POST", `/events/${slug}/brackets/schedule`, directorToken, {});
   await playOut(slug, directorToken, 0.55, 5);
-  return { slug, directorToken };
+  return { slug, directorToken, coach: { teamId: clubs[0]!.id, token: clubs[0]!.token } };
+}
+
+/**
+ * Teams with saved rosters, made straight in the database (demo-flagged, so
+ * they're cleaned up with the demos). Kids get an experience level from
+ * years wrestled, and older hands a rating that results have moved.
+ */
+async function savedTeams(names: string[], kids: number) {
+  const out = [];
+  for (const name of names) {
+    const token = newToken();
+    const [team] = await db.insert(teamsTable).values({ name, tokenHash: hashToken(token), isDemo: true }).returning();
+    const rows = Array.from({ length: kids }, () => {
+      const birthYear = 2015 + Math.floor(rand() * 5);
+      const girl = rand() < 0.15;
+      const years = Math.min(2026 - birthYear - 4, Math.floor(rand() * 6));
+      const level: ExperienceLevel = years <= 1 ? "novice" : years <= 3 ? "intermediate" : "advanced";
+      const ratedMatches = years === 0 ? 0 : years * 4 + Math.floor(rand() * 6);
+      return {
+        teamId: team!.id,
+        firstName: girl ? pick(FIRST.slice(40)) : pick(FIRST.slice(0, 40)),
+        lastName: pick(LAST),
+        birthYear,
+        gender: girl ? ("girls" as const) : ("boys" as const),
+        weight: 45 + (2020 - birthYear) * 7 + Math.round(rand() * 200) / 10,
+        weightUpdatedAt: new Date(Date.now() - Math.floor(rand() * 20) * 86_400_000),
+        level,
+        yearsWrestled: years,
+        rating: seedRating(level) + (ratedMatches ? Math.round((rand() - 0.5) * 240) : 0),
+        ratedMatches,
+      };
+    });
+    const saved = await db.insert(wrestlers).values(rows).returning({ id: wrestlers.id });
+    out.push({ id: team!.id, name, token, wrestlerIds: saved.map((w) => w.id) });
+  }
+  return out;
+}
+
+/** The coach registers their whole saved roster, as from the roster page. */
+async function register(slug: string, team: { id: string; token: string; wrestlerIds: string[] }) {
+  await call("POST", `/teams/${team.id}/register`, team.token, { eventSlug: slug, wrestlers: team.wrestlerIds.map((wrestlerId) => ({ wrestlerId })) });
+}
+
+async function meetEvent() {
+  const tz = "America/Chicago";
+  const today = localNow(tz);
+  const { slug, directorToken } = await call("POST", "/events", undefined, {
+    name: "Demo Youth Tri-Meet",
+    startDate: today.date,
+    startTime: hhmm(today.minutes - 45),
+    timezone: tz,
+    location: "Roosevelt High School",
+    city: "Des Moines",
+    state: "IA",
+    format: "meet",
+    rulesetId: "usaw-kids-folkstyle-2025-26",
+    settings: { mats: 2, registrationOpen: true, meet: { matchesPerKid: 2 } },
+    divisions: [["8U", 8], ["10U", 10], ["12U", 12]].flatMap(([age, maxAge]) =>
+      (["boys", "girls"] as const).map((gender) => ({
+        name: `${age} ${gender === "boys" ? "Boys" : "Girls"}`,
+        ageDivision: age,
+        maxAge,
+        gender,
+        periodsSec: Number(maxAge) <= 10 ? [60, 60, 60] : [60, 90, 90],
+      })),
+    ),
+  });
+  const clubs = await savedTeams(["Hawkeye WC", "Valley Vikings", "Ankeny Elite"], 12);
+  for (const club of clubs) await register(slug, club);
+  await call("POST", `/events/${slug}/pairings/auto`, directorToken, {});
+  await call("POST", `/events/${slug}/brackets/schedule`, directorToken, {});
+  await playOut(slug, directorToken, 0.45, 4);
+  return { slug, directorToken, coach: { teamId: clubs[0]!.id, token: clubs[0]!.token } };
 }
 
 async function highSchoolEvent() {
@@ -206,5 +299,5 @@ async function highSchoolEvent() {
   return { slug, directorToken };
 }
 
-return kind === "youth" ? youthEvent() : highSchoolEvent();
+return kind === "youth" ? youthEvent() : kind === "meet" ? meetEvent() : highSchoolEvent();
 }

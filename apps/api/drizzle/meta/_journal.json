@@ -78,6 +78,13 @@
       "when": 1791310647941,
       "tag": "0010_woozy_tarantula",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791315686832,
+      "tag": "0011_tranquil_blackheart",
+      "breakpoints": true
     }
   ]
 }
