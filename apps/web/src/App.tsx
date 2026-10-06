@@ -15,6 +15,8 @@ import PrintQr from "./pages/print/PrintQr";
 import Recover from "./pages/Recover";
 import TeamRegister from "./pages/TeamRegister";
 import TeamScores from "./pages/TeamScores";
+import NewTeam from "./pages/teams/NewTeam";
+import TeamRoster from "./pages/teams/TeamRoster";
 import Tournaments from "./pages/Tournaments";
 import WeighIn from "./pages/WeighIn";
 
@@ -24,6 +26,8 @@ export const router = createBrowserRouter([
   { path: "/new-event", element: <NewEvent /> },
   { path: "/tournaments", element: <Tournaments /> },
   { path: "/recover", element: <Recover /> },
+  { path: "/teams/new", element: <NewTeam /> },
+  { path: "/t/:teamId", element: <TeamRoster /> },
   { path: "/e/:slug", element: <EventPublic /> },
   { path: "/e/:slug/team", element: <TeamRegister /> },
   { path: "/e/:slug/brackets", element: <Brackets /> },

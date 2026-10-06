@@ -144,6 +144,8 @@ export const entries = pgTable(
     status: text("status").$type<EntryStatus>().notNull().default("registered"),
     contactEmail: text("contact_email"),
     notes: text("notes").notNull().default(""),
+    /** The team's saved wrestler this entry came from (ratings, roster), if any. */
+    wrestlerId: uuid("wrestler_id").references(() => wrestlers.id, { onDelete: "set null" }),
     /** Optional photo of the wrestler. Only displayed when photoConsent is true. */
     photoUrl: text("photo_url"),
     /** Parent/athlete permission to display the photo. Independent of the wrestle-up `consent`. Default off. */
@@ -347,4 +349,70 @@ export const notificationLog = pgTable(
     sentAt: timestamp("sent_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("notification_log_key_idx").on(t.followId, t.key)],
+);
+
+/**
+ * A team (club or school) with a private coach link. Teams outlive events:
+ * their saved roster is reused for every tournament and meet.
+ */
+export const teams = pgTable(
+  "teams",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    /** Where to send a new coach link if it's lost. Never shown publicly. */
+    coachEmail: text("coach_email"),
+    /** SHA-256 of the coach link token. */
+    tokenHash: text("token_hash").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("teams_token_idx").on(t.tokenHash)],
+);
+
+export type ExperienceLevel = "novice" | "intermediate" | "advanced";
+
+/**
+ * A wrestler saved on a team's roster. Level and rating are private to the
+ * team's coach (and directors of events the wrestler is entered in).
+ */
+export const wrestlers = pgTable(
+  "wrestlers",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    teamId: uuid("team_id")
+      .notNull()
+      .references(() => teams.id, { onDelete: "cascade" }),
+    firstName: text("first_name").notNull(),
+    lastName: text("last_name").notNull(),
+    birthYear: integer("birth_year"),
+    gender: text("gender").$type<"boys" | "girls">(),
+    /** Most recent known weight (from the coach or a weigh-in). */
+    weight: real("weight"),
+    weightUpdatedAt: timestamp("weight_updated_at", { withTimezone: true }),
+    level: text("level").$type<ExperienceLevel>(),
+    yearsWrestled: integer("years_wrestled"),
+    /** Private skill rating: seeded by level, moved by OpenMat match results. */
+    rating: real("rating").notNull().default(1000),
+    ratedMatches: integer("rated_matches").notNull().default(0),
+    notes: text("notes").notNull().default(""),
+    archivedAt: timestamp("archived_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("wrestlers_team_idx").on(t.teamId)],
+);
+
+/** How much each finished bout moved each wrestler's rating, so corrections can undo it. */
+export const ratingChanges = pgTable(
+  "rating_changes",
+  {
+    boutId: uuid("bout_id")
+      .notNull()
+      .references(() => bouts.id, { onDelete: "cascade" }),
+    wrestlerId: uuid("wrestler_id")
+      .notNull()
+      .references(() => wrestlers.id, { onDelete: "cascade" }),
+    delta: real("delta").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("rating_changes_bout_wrestler_idx").on(t.boutId, t.wrestlerId)],
 );

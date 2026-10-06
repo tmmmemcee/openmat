@@ -31,6 +31,8 @@ export default function Wrestlers({ event }: { event: EventInfo }) {
     });
   }, [entries.data, query, filter, divisionId]);
 
+  const hasSkill = (entries.data ?? []).some((e) => e.skill);
+
   if (entries.isLoading) return <Spinner />;
 
   return (
@@ -78,6 +80,11 @@ export default function Wrestlers({ event }: { event: EventInfo }) {
                 <th className="px-4 py-2.5">Division</th>
                 {event.format === "weight-classes" && <th className="px-4 py-2.5">Class</th>}
                 <th className="px-4 py-2.5">Weight</th>
+                {hasSkill && (
+                  <th className="px-4 py-2.5" title="From the team's saved roster. Private: only you see this.">
+                    Experience
+                  </th>
+                )}
                 <th className="px-4 py-2.5">Status</th>
               </tr>
             </thead>
@@ -106,6 +113,11 @@ export default function Wrestlers({ event }: { event: EventInfo }) {
                   <td className="px-4 py-2.5 text-slate-600">{divisionName(e.divisionId)}</td>
                   {event.format === "weight-classes" && <td className="px-4 py-2.5">{e.weightClass ?? "—"}</td>}
                   <td className="px-4 py-2.5">{lbs(e.weight)}</td>
+                  {hasSkill && (
+                    <td className="px-4 py-2.5 text-slate-600">
+                      {e.skill ? <SkillCell skill={e.skill} /> : <span className="text-slate-400">—</span>}
+                    </td>
+                  )}
                   <td className="px-4 py-2.5">
                     <StatusBadge entry={e} />
                   </td>
@@ -123,6 +135,17 @@ export default function Wrestlers({ event }: { event: EventInfo }) {
       <ImportDialog event={event} open={importing} onClose={() => setImporting(false)} />
       {editing && <EditDialog event={event} entry={editing} onClose={() => setEditing(null)} />}
     </div>
+  );
+}
+
+const LEVEL_SHORT = { novice: "Novice", intermediate: "Inter.", advanced: "Adv." } as const;
+
+function SkillCell({ skill }: { skill: NonNullable<Entry["skill"]> }) {
+  return (
+    <span title={`Rating ${skill.rating} from ${skill.ratedMatches} rated matches${skill.yearsWrestled != null ? ` · ${skill.yearsWrestled} years wrestling` : ""}`}>
+      {skill.level ? LEVEL_SHORT[skill.level] : "—"}
+      <span className="ml-1 text-xs text-slate-500">{skill.rating}</span>
+    </span>
   );
 }
 

@@ -52,6 +52,10 @@ export default function Home() {
             <Link to="/recover" className="font-semibold text-white underline">
               Get it back
             </Link>
+            {" · "}Coach?{" "}
+            <Link to="/teams/new" className="font-semibold text-white underline">
+              Save your team's roster
+            </Link>
           </p>
         </div>
       </section>

@@ -8,7 +8,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { accessFor, requireRole } from "../auth.js";
 import type { Db } from "../db/client.js";
-import { divisions, entries, type EntryStatus, groupMembers } from "../db/schema.js";
+import { divisions, entries, type EntryStatus, groupMembers, wrestlers } from "../db/schema.js";
 import { HttpError } from "../errors.js";
 import { RateLimiter } from "../rateLimit.js";
 import { loadDivisions, loadEvent } from "./events.js";
@@ -23,7 +23,7 @@ type Entry = typeof entries.$inferSelect;
 const name = z.string().trim().min(1, "Required").max(60);
 const optionalNumber = (min: number, max: number) => z.number().min(min).max(max).nullish();
 
-const entryInput = z.object({
+export const entryInput = z.object({
   firstName: name,
   lastName: name,
   team: z.string().trim().max(80).default(""),
@@ -35,7 +35,7 @@ const entryInput = z.object({
   contactEmail: z.string().trim().email().max(200).nullish().or(z.literal("").transform(() => null)),
   notes: z.string().trim().max(500).optional(),
 });
-type EntryInput = z.infer<typeof entryInput>;
+export type EntryInput = z.infer<typeof entryInput>;
 
 const entryPatch = z.object({
   firstName: name.optional(),
@@ -69,7 +69,7 @@ function weightClassSet(d: Division): WeightClassSet | null {
 }
 
 /** Pick the division for a new entry, from an explicit choice or birth year + gender. */
-function resolveDivision(event: Event, divs: Division[], input: EntryInput): Division {
+export function resolveDivision(event: Event, divs: Division[], input: EntryInput): Division {
   if (input.divisionId) {
     const d = divs.find((x) => x.id === input.divisionId);
     if (!d) throw new HttpError(400, "That division isn't part of this event.");
@@ -116,7 +116,7 @@ async function listEntries(db: Db, eventId: string) {
     .orderBy(asc(entries.lastName), asc(entries.firstName));
 }
 
-async function findDuplicate(db: Db, eventId: string, input: EntryInput): Promise<boolean> {
+export async function findDuplicate(db: Db, eventId: string, input: EntryInput): Promise<boolean> {
   const rows = await db
     .select({ id: entries.id })
     .from(entries)
@@ -131,7 +131,7 @@ async function findDuplicate(db: Db, eventId: string, input: EntryInput): Promis
   return rows.length > 0;
 }
 
-function newEntryValues(event: Event, d: Division, input: EntryInput) {
+export function newEntryValues(event: Event, d: Division, input: EntryInput) {
   validateWeightClass(d, input.weightClass);
   return {
     eventId: event.id,
@@ -176,10 +176,26 @@ export function entryRoutes(app: FastifyInstance, db: Db): void {
 
   app.get<{ Params: { slug: string } }>("/api/events/:slug/entries", async (req) => {
     const event = await loadEvent(db, req.params.slug);
-    await requireRole(db, req, event.id, "weigh-in", "table");
+    const access = await requireRole(db, req, event.id, "weigh-in", "table");
     const divs = await loadDivisions(db, event.id);
     const rows = await listEntries(db, event.id);
-    return rows.map((r) => present({ ...r.entry, groupId: r.groupId }, divs));
+    // Experience and rating are private: only the director sees them.
+    const skill =
+      access.role === "director"
+        ? new Map(
+            (
+              await db
+                .select({ id: wrestlers.id, level: wrestlers.level, rating: wrestlers.rating, ratedMatches: wrestlers.ratedMatches, yearsWrestled: wrestlers.yearsWrestled })
+                .from(wrestlers)
+                .innerJoin(entries, eq(entries.wrestlerId, wrestlers.id))
+                .where(eq(entries.eventId, event.id))
+            ).map((w) => [w.id, w]),
+          )
+        : null;
+    return rows.map((r) => {
+      const s = skill && r.entry.wrestlerId ? skill.get(r.entry.wrestlerId) : undefined;
+      return { ...present({ ...r.entry, groupId: r.groupId }, divs), ...(s ? { skill: { level: s.level, rating: Math.round(s.rating), ratedMatches: s.ratedMatches, yearsWrestled: s.yearsWrestled } } : {}) };
+    });
   });
 
   /** Register one wrestler. Staff always; the public only while registration is open. */
@@ -282,6 +298,10 @@ export function entryRoutes(app: FastifyInstance, db: Db): void {
       }
     }
     const [updated] = await db.update(entries).set(update).where(eq(entries.id, entry.id)).returning();
+    // A weigh-in is the freshest weight there is: keep the team's saved roster up to date.
+    if (patch.weight != null && updated?.wrestlerId) {
+      await db.update(wrestlers).set({ weight: patch.weight, weightUpdatedAt: new Date() }).where(eq(wrestlers.id, updated.wrestlerId));
+    }
     // A scratched wrestler leaves their group.
     if (updated!.status === "scratched") await db.delete(groupMembers).where(eq(groupMembers.entryId, entry.id));
     const [membership] = await db.select().from(groupMembers).where(eq(groupMembers.entryId, entry.id));

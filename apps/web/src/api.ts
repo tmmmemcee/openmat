@@ -14,10 +14,10 @@ export class ApiError extends Error {
   }
 }
 
-export async function api<T>(path: string, options: { method?: string; body?: unknown; slug?: string } = {}): Promise<T> {
+export async function api<T>(path: string, options: { method?: string; body?: unknown; slug?: string; token?: string | null } = {}): Promise<T> {
   const headers: Record<string, string> = {};
   if (options.body !== undefined) headers["content-type"] = "application/json";
-  const token = options.slug ? getToken(options.slug) : null;
+  const token = options.token ?? (options.slug ? getToken(options.slug) : null);
   if (token) headers.authorization = `Bearer ${token}`;
   let res: Response;
   try {
@@ -155,6 +155,33 @@ export interface Entry {
   photoUploadedAt: string | null;
   groupId: string | null;
   weighIn: WeighInCheck | null;
+  /** Private experience/rating from the team's saved roster. Only sent to the director. */
+  skill?: { level: ExperienceLevel | null; rating: number; ratedMatches: number; yearsWrestled: number | null };
+}
+
+export type ExperienceLevel = "novice" | "intermediate" | "advanced";
+
+/** A wrestler on a team's saved roster (coach link only). */
+export interface SavedWrestler {
+  id: string;
+  firstName: string;
+  lastName: string;
+  birthYear: number | null;
+  gender: "boys" | "girls" | null;
+  weight: number | null;
+  weightUpdatedAt: string | null;
+  level: ExperienceLevel | null;
+  yearsWrestled: number | null;
+  rating: number;
+  ratedMatches: number;
+  notes: string;
+}
+
+export interface Team {
+  id: string;
+  name: string;
+  coachEmail: string | null;
+  wrestlers: SavedWrestler[];
 }
 
 export type GroupFlag =
