@@ -27,8 +27,8 @@ export async function buildApp(db: Db, options: FastifyServerOptions & { mailer?
     ...fastifyOptions,
   });
   // The web app lives on a different origin than the API in production
-  // (openmat-web.onrender.com vs openmat-api.onrender.com); without this the
-  // browser blocks every API response. Registered before multipart so OPTIONS
+  // (openmat-web.onrender.com vs openmat-api-0rjq.onrender.com); without this
+  // the browser blocks every API response. Registered before multipart so OPTIONS
   // preflights short-circuit instead of walking past the body parser.
   await app.register(cors, {
     origin: CORS_ORIGINS,
