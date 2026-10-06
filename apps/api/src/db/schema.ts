@@ -376,6 +376,8 @@ export const teams = pgTable(
     coachEmail: text("coach_email"),
     /** SHA-256 of the coach link token. */
     tokenHash: text("token_hash").notNull(),
+    /** Made for a live demo: deleted with the demos after a day. */
+    isDemo: boolean("is_demo").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("teams_token_idx").on(t.tokenHash)],

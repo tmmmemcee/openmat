@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router";
 import type { EventInfo } from "../api";
-import { useStartDemo } from "../lib/demo";
+import { demoCoachTeam, useStartDemo } from "../lib/demo";
+import { useBrackets } from "../lib/hooks";
 import { Button, ErrorBox, cx } from "../ui";
 
 /** Shown to someone trying the live demo: what this is, and things to try. */
@@ -9,8 +10,16 @@ export function DemoGuide({ event }: { event: EventInfo }) {
   const [open, setOpen] = useState(true);
   const start = useStartDemo();
   const slug = event.slug;
-  const kind = event.format === "madison" ? "youth" : "high-school";
+  const kind = event.format === "madison" ? "youth" : event.format === "meet" ? "meet" : "high-school";
+  const coachTeam = demoCoachTeam(slug);
+  // A match in progress to watch live.
+  const live = useBrackets(slug)
+    .data?.brackets.flatMap((b) => b.bouts)
+    .find((b) => b.status === "wrestling");
   const tries: { label: string; detail: string; to: string; newTab?: boolean }[] = [
+    ...(live
+      ? [{ label: "Watch a match live", detail: "Score, position and clock as the table taps, like a parent in the stands.", to: `/e/${slug}/bouts/${live.id}`, newTab: true }]
+      : []),
     { label: "Score a match", detail: "Open the Mat 1 scoring table and tap through a bout, then finish it.", to: `/e/${slug}/table/1`, newTab: true },
     { label: "Watch the mats", detail: "The public mat board updates within seconds of a result. Put it next to the table.", to: `/e/${slug}/mats`, newTab: true },
     { label: "Run the day", detail: "In the Live tab, move a bout to another mat or fix a result.", to: `/e/${slug}/manage/live` },
@@ -18,7 +27,23 @@ export function DemoGuide({ event }: { event: EventInfo }) {
     { label: "Brackets", detail: "Search any name to find their bracket.", to: `/e/${slug}/brackets`, newTab: true },
     ...(event.format === "madison"
       ? [{ label: "Weigh-ins and groups", detail: "Weigh a kid in, then see the groups and drag kids between them.", to: `/e/${slug}/manage/groups` }]
-      : [{ label: "Seeds and printouts", detail: "Seed a bracket, then print brackets and bout sheets.", to: `/e/${slug}/manage/brackets` }]),
+      : event.format === "meet"
+        ? [
+            { label: "Pairings", detail: "See who wrestles whom and why, add a match by hand, or re-pair after a late arrival.", to: `/e/${slug}/manage/pairings` },
+            { label: "Meet score", detail: "Team against team, adding up as matches finish.", to: `/e/${slug}/teams`, newTab: true },
+          ]
+        : [{ label: "Seeds and printouts", detail: "Seed a bracket, then print brackets and bout sheets.", to: `/e/${slug}/manage/brackets` }]),
+    ...(coachTeam
+      ? [
+          {
+            label: "Be a coach",
+            detail: "Open a club's saved roster: latest weights, private experience levels and ratings, register for events.",
+            to: `/t/${coachTeam}`,
+            newTab: true,
+          },
+          { label: "Private experience", detail: "The Wrestlers tab shows each kid's level and rating. Only you and their coach see it.", to: `/e/${slug}/manage/wrestlers` },
+        ]
+      : []),
     { label: "QR codes", detail: "Print a fan poster and scoring table cards.", to: `/e/${slug}/print/qr`, newTab: true },
   ];
   return (

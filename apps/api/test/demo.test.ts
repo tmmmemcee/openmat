@@ -1,7 +1,7 @@
 import { eq, sql } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { createDb } from "../src/db/client.js";
-import { events } from "../src/db/schema.js";
+import { events, teams } from "../src/db/schema.js";
 import { cleanUpDemos } from "../src/routes/demo.js";
 import { app, auth } from "./helpers.js";
 
@@ -22,12 +22,33 @@ describe("live demo", () => {
     expect(list.events.some((e: { slug: string }) => e.slug === slug)).toBe(false);
   });
 
-  it("youth demos too, and day-old demos get cleaned up", { timeout: 60_000 }, async () => {
-    const { slug } = (await app.inject({ method: "POST", url: "/api/demo", payload: { kind: "youth" } })).json();
+  it("youth demos come from saved rosters with a coach link, and day-old demos (and their teams) get cleaned up", { timeout: 60_000 }, async () => {
+    const { slug, directorToken, coach } = (await app.inject({ method: "POST", url: "/api/demo", payload: { kind: "youth" } })).json();
+    const roster = await app.inject({ url: `/api/teams/${coach.teamId}`, headers: auth(coach.token) });
+    expect(roster.statusCode).toBe(200);
+    expect(roster.json().wrestlers.length).toBe(14);
+    // The director sees experience; the public doesn't.
+    const entries = (await app.inject({ url: `/api/events/${slug}/entries`, headers: auth(directorToken) })).json();
+    expect(entries.filter((e: { skill?: object }) => e.skill).length).toBe(entries.length);
+
     expect(await cleanUpDemos(db)).toBe(0);
     await db.update(events).set({ createdAt: sql`now() - interval '25 hours'` }).where(eq(events.slug, slug));
+    await db.update(teams).set({ createdAt: sql`now() - interval '25 hours'` }).where(eq(teams.isDemo, true));
     expect(await cleanUpDemos(db)).toBe(1);
     expect((await app.inject({ url: `/api/events/${slug}` })).statusCode).toBe(404);
+    expect((await app.inject({ url: `/api/teams/${coach.teamId}`, headers: auth(coach.token) })).statusCode).toBe(404);
+  });
+
+  it("builds a tri-meet that's paired, scheduled and part-wrestled", { timeout: 60_000 }, async () => {
+    const { slug, directorToken } = (await app.inject({ method: "POST", url: "/api/demo", payload: { kind: "meet" } })).json();
+    const board = (await app.inject({ url: `/api/events/${slug}/pairings`, headers: auth(directorToken) })).json();
+    expect(board.wrestlers).toHaveLength(36);
+    expect(board.pairings.length).toBeGreaterThan(25);
+    const statuses = new Set(board.pairings.map((p: { status: string }) => p.status));
+    expect(statuses).toEqual(new Set(["done", "wrestling", "ready"]));
+    const scores = (await app.inject({ url: `/api/events/${slug}/team-scores` })).json();
+    expect(scores.kind).toBe("meet");
+    expect(scores.duals).toHaveLength(3);
   });
 
   it("rejects unknown demo kinds", async () => {

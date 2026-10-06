@@ -8,6 +8,8 @@ const features = [
   ["Smart mat schedule", "Every kid gets their rest between matches. Mats stay busy."],
   ["Live on deck / in the hole", "Parents see where and when their kid wrestles next and get a heads-up."],
   ["Easy table scoring", "Tap to score on a phone or tablet. Fix mistakes without losing history."],
+  ["Scratch duals and tri-meets", "No brackets: kids paired across teams by weight, age and experience, with as many matches each as you choose."],
+  ["Saved team rosters", "Coaches keep kids' latest weights and experience in one place and register for any event in a few taps."],
   ["Free and open source", "No paywall on results or alerts. MIT licensed."],
 ];
 
@@ -15,7 +17,12 @@ const demos = [
   {
     kind: "youth" as const,
     title: "Youth tournament",
-    text: "51 kids from four clubs, grouped by weight at weigh-ins into round robins on 3 mats. Mid-morning, with matches live.",
+    text: "About 50 kids from four clubs' saved rosters, grouped by weight at weigh-ins into round robins on 3 mats. Mid-morning, with matches live.",
+  },
+  {
+    kind: "meet" as const,
+    title: "Youth tri-meet",
+    text: "Three teams, no brackets: kids paired across teams by weight, age and experience, two matches each on 2 mats, with the meet score adding up.",
   },
   {
     kind: "high-school" as const,
@@ -66,7 +73,7 @@ export default function Home() {
             Get your own demo tournament, already in progress, and run it as the director. Score a match at a table, move bouts between mats, follow a wrestler
             like a parent would. It takes a few seconds to set up, nobody else sees it, and it's deleted after a day.
           </p>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
             {demos.map((d) => (
               <div key={d.kind} className="flex flex-col justify-between gap-3 rounded-xl bg-slate-50 p-4 ring-1 ring-slate-200">
                 <div>
