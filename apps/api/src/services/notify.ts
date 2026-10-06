@@ -105,6 +105,8 @@ export function dueAlerts(
   followedAt: Date,
   fmtTime: (iso: string) => string,
   url: string,
+  /** Link for alerts about one bout (its live match page); defaults to `url`. */
+  boutUrl: (boutId: string) => string = () => url,
 ): { key: string; alert: Alert }[] {
   const out: { key: string; alert: Alert }[] = [];
   const name = (id: string | null | undefined) => (id && id !== BYE ? `${people.get(id)?.firstName ?? ""} ${people.get(id)?.lastName ?? ""}`.trim() : null);
@@ -142,14 +144,14 @@ export function dueAlerts(
           alert: {
             title: `${who} is in the hole on Mat ${b.mat}`,
             body: `Bout ${b.boutNumber} vs ${opponent(b)}${q.estimatedStart ? ` · about ${fmtTime(q.estimatedStart)}` : ""}.`,
-            url,
+            url: boutUrl(b.id),
           },
         });
       }
       if (q?.position === "on-deck") {
         out.push({
           key: `${b.id}:${w}:deck`,
-          alert: { title: `${who} is on deck on Mat ${b.mat}!`, body: `Bout ${b.boutNumber} vs ${opponent(b)}. Head to the mat.`, url },
+          alert: { title: `${who} is on deck on Mat ${b.mat}!`, body: `Bout ${b.boutNumber} vs ${opponent(b)}. Head to the mat.`, url: boutUrl(b.id) },
         });
       }
       if (b.status === "done" && b.result && b.endedAt && b.endedAt > followedAt && !b.conflict) {
@@ -159,7 +161,7 @@ export function dueAlerts(
           alert: {
             title: `${who} ${won ? "won" : "lost"}`,
             body: `${b.result.summary} ${won ? "over" : "to"} ${opponent(b)} (bout ${b.boutNumber}${q?.bracketName ? `, ${q.bracketName}` : ""}).`,
-            url,
+            url: boutUrl(b.id),
           },
         });
       }
@@ -195,7 +197,7 @@ export async function runNotifications(db: Db, eventId: string, notifier: Notifi
   let sent = 0;
   for (const f of fs) {
     const ids = f.entryId ? [f.entryId] : roster.filter((p) => f.team && p.team.toLowerCase() === f.team.toLowerCase()).map((p) => p.id);
-    const due = dueAlerts(ids, people, bouts, queue, f.createdAt, fmtTime, url);
+    const due = dueAlerts(ids, people, bouts, queue, f.createdAt, fmtTime, url, (boutId) => `${baseUrl}/e/${event.slug}/bouts/${boutId}`);
     for (const d of due) {
       // Claim the alert first, so two runs at once can't both send it.
       const claimed = await db.insert(notificationLog).values({ followId: f.id, key: d.key }).onConflictDoNothing().returning();

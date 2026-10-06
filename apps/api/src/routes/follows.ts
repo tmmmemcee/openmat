@@ -116,6 +116,7 @@ export function followRoutes(app: FastifyInstance, db: Db, notifier: Notifier, s
         bracket: bracket ? { id: bracket.id, name: bracket.name } : null,
         next: next
           ? {
+              id: next.id,
               boutNumber: next.boutNumber,
               mat: next.mat,
               status: next.status,

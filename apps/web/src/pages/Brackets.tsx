@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { BracketView } from "../components/BracketView";
+import { LiveContext, useLiveMap } from "../components/Live";
 import { useBrackets, useEvent } from "../lib/hooks";
 import { Card, ErrorBox, Header, Input, Notice, Page, Select, Spinner, cx } from "../ui";
 
@@ -8,6 +9,7 @@ export default function Brackets() {
   const { slug = "" } = useParams();
   const event = useEvent(slug);
   const data = useBrackets(slug);
+  const live = useLiveMap(slug);
   const [params, setParams] = useSearchParams();
   const [query, setQuery] = useState("");
   const wrestlers = useMemo(() => new Map((data.data?.wrestlers ?? []).map((w) => [w.id, w])), [data.data]);
@@ -85,7 +87,9 @@ export default function Brackets() {
             {selected && (
               <Card>
                 <h2 className={cx("mb-3 text-xl font-bold")}>{selected.name}</h2>
-                <BracketView bracket={selected} wrestlers={wrestlers} highlight={highlight} />
+                <LiveContext.Provider value={{ slug, live: live.data, periods: Math.max(0, ...(event.data?.divisions ?? []).map((d) => d.periodsSec.length)) }}>
+                  <BracketView bracket={selected} wrestlers={wrestlers} highlight={highlight} />
+                </LiveContext.Provider>
               </Card>
             )}
           </>

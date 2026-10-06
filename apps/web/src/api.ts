@@ -277,3 +277,33 @@ export interface AllMats {
   wrestlers: Wrestler[];
   serverNow: string;
 }
+
+/** Every bout in progress: score, position and clock, keyed by bout id. */
+export interface LiveMap {
+  bouts: Record<string, LiveDetails>;
+  serverNow: string;
+}
+
+export interface Play {
+  id: string;
+  kind: "score" | "warning" | "choice" | "position";
+  corner: "A" | "B" | null;
+  label: string;
+  points: number;
+  period?: number;
+  matchTimeSec?: number;
+  score: { A: number; B: number };
+}
+
+/** Public view of one bout (live match page). */
+export interface BoutDetail {
+  bout: Bout;
+  bracketName: string;
+  wrestlers: (Wrestler & { divisionId: string; photoUrl?: string | null; photoConsent?: boolean })[];
+  periodsSec: number[];
+  rulesetId: string;
+  state: { score: { A: number; B: number }; position: "neutral" | "A-top" | "B-top" };
+  plays: Play[];
+  live?: LiveDetails;
+  serverNow: string;
+}

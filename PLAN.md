@@ -334,6 +334,11 @@ Each feature lists **what it does**, **how we build it**, and **open questions**
 - [x] Live mat board: score, position and a running match clock for bouts in progress (the table shares its clock)
 - [x] Scaling quick wins: per-tournament snapshot cache (versioned; live taps don't rebuild brackets), ETag/304 and short public caching for CDNs, single all-mats request, alerts only on real mat changes, production bundle with worker processes and optional static hosting. Measured on this machine: one worker went from ~220 to ~1,150–2,250 req/s on the heaviest reads; a mat-board viewer now costs one request per 3s instead of four
 - [ ] Scaling next: alerts in a job queue (diff-based, parallel sends), Redis for rate limits/pubsub, PgBouncer, demo from a template, load test at Saturday scale, monitoring
-- [ ] Hosting and deploy (public site)
+- [x] Hosting on Render (web + API + Postgres); live demo fixed in PR #10
+- [x] Live match view (`/e/:slug/bouts/:id`): score, position diagram, period clock, play-by-play; live score/position/clock in brackets and My wrestlers; mat board "Watch live"; bout alerts link to it
+- [x] Folkstyle: defer only allowed for the period 2 choice
+- [ ] **Live video (planned):** directors add a stream link per mat (YouTube, Twitch, or any HLS stream) in event settings; the live match page shows the video above the scoreboard when the bout's mat has one, and nothing changes for tournaments without video. Later: a score overlay for streamers (browser source for OBS) and links from a bout to its spot in a recorded stream.
+- [ ] **Ratings and experience (next):** saved wrestler profiles carry an experience level and/or rating (e.g. novice/intermediate/advanced, years wrestled, a win-based rating). Private to coaches and directors, never shown publicly or on brackets. Used to balance youth scratch groups and meet pairings.
+- [ ] **Youth scratch duals and tri-meets (next):** teams supply recent weights (no weigh-in day); the app pairs kids across teams as evenly as possible by weight, age and experience, allowing a bit more weight/age difference when experience matches; coaches can adjust pairings before the meet.
 - [ ] Stronger abuse protection on public registration (basic per-IP rate limits are in; add CAPTCHA or email confirmation before going public)
 - [ ] Location search by distance ("within 50 miles"): needs geocoding

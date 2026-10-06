@@ -130,3 +130,19 @@ describe("alert timing", () => {
     expect(runs).toBeGreaterThanOrEqual(4);
   });
 });
+
+describe("alert links", () => {
+  it("links bout alerts to that bout's live match page", async () => {
+    const s = await setup();
+    await s.post("/brackets/generate", { format: "double-elim" });
+    await s.post("/brackets/schedule", {});
+    // Follow whoever wrestles first on the mat: they're on deck right away.
+    const first = (await app.inject({ url: `/api/events/${s.slug}/mats/1` })).json().queue[0].bout;
+    await s.follow({ entryId: first.a });
+    await s.alerts();
+    const deck = notifier.sent.find((m) => m.alert.title.includes("on deck"))!;
+    expect(deck.alert.url).toBe(`http://localhost:5173/e/${s.slug}/bouts/${first.id}`);
+    const firstMatch = notifier.sent.find((m) => m.alert.title.includes("first match"))!;
+    expect(firstMatch.alert.url).toMatch(new RegExp(`/e/${s.slug}/follow$`));
+  });
+});
